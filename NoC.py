@@ -12,7 +12,7 @@
 from direct.showbase.ShowBase import ShowBase
 base = ShowBase()
 
-from panda3d.core import TextNode
+from panda3d.core import *
 from direct.interval.IntervalGlobal import *
 from direct.gui.DirectGui import *
 from direct.showbase.DirectObject import DirectObject
@@ -37,17 +37,27 @@ class World(DirectObject):
         # The standard camera position and background initialization
         base.setBackgroundColor(0, 0, 0)
         base.disableMouse()
-        camera.setPos(0, 0, 45)
-        camera.setHpr(0, -90, 0)
+        camera.setPos(0, -13, 40)
+        camera.setHpr(0, -70, 0)
         
 
         # The global variables we used to control the speed and size of objects
-        self.yearscale = 60
+        self.yearscale = 900
         self.dayscale = self.yearscale / 365.0 * 5
+        self.yearCounter = 0  # year counter for earth years
         self.orbitscale = 10
         self.sizescale = 0.6
         self.camSpeed = 10
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
+
+        self.pickerNode = CollisionNode('mouseRay')
+        self.pickerNP = camera.attachNewNode(self.pickerNode)
+        self.pickerNode.setFromCollideMask(GeomNode.getDefaultCollideMask())
+        self.pickerRay = CollisionRay()
+        self.pickerNode.addSolid(self.pickerRay)
+        self.collQueue = CollisionHandlerQueue()
+        base.cTrav = CollisionTraverser('myTraverser')
+        base.cTrav.addCollider(self.pickerNP, self.collQueue)
 
         self.loadPlanets()  # Load, texture, and position the planets
         self.rotatePlanets()  # Set up the motion to start them moving
@@ -59,18 +69,7 @@ class World(DirectObject):
             parent=base.a2dBottomRight, align=TextNode.A_right,
             style=1, fg=(1, 1, 1, 1), pos=(-0.1, 0.1), scale=.07)
 
-        self.mouse1EventText = self.genLabelText(
-            "Mouse Button 1: Toggle entire Solar System [RUNNING]", 1)
-        self.skeyEventText = self.genLabelText("[S]: Toggle Sun [RUNNING]", 2)
-        self.ykeyEventText = self.genLabelText("[Y]: Toggle Mercury [RUNNING]", 3)
-        self.vkeyEventText = self.genLabelText("[V]: Toggle Venus [RUNNING]", 4)
-        self.ekeyEventText = self.genLabelText("[E]: Toggle Earth [RUNNING]", 5)
-        self.mkeyEventText = self.genLabelText("[M]: Toggle Mars [RUNNING]", 6)
-        self.yearCounterText = self.genLabelText("0 Earth years completed", 7)
 
-        self.yearCounter = 0  # year counter for earth years
-        self.simRunning = True  # boolean to keep track of the
-        # state of the global simulation
 
         # Events
         # Each self.accept statement creates an event handler object that will call
@@ -94,132 +93,31 @@ class World(DirectObject):
         self.accept("arrow_right-up", self.releaseKey, ["right"])
 
         self.accept("mouse1", self.handleMouseClick)
-        self.accept("e", self.handleEarth)
-        self.accept("s",  # message name
-                    self.togglePlanet,  # function to call
-                    ["Sun",  # arguments to be passed to togglePlanet
-                     # See togglePlanet's definition below for
-                     # an explanation of what they are
-                     self.day_period_sun,
-                     None,
-                     self.skeyEventText])
-        # Repeat the structure above for the other planets
-        self.accept("y", self.togglePlanet,
-                    ["Mercury", self.day_period_mercury,
-                     self.orbit_period_mercury, self.ykeyEventText])
-        self.accept("v", self.togglePlanet,
-                    ["Venus", self.day_period_venus,
-                     self.orbit_period_venus, self.vkeyEventText])
-        self.accept("m", self.togglePlanet,
-                    ["Mars", self.day_period_mars,
-                     self.orbit_period_mars, self.mkeyEventText])
-        self.accept("newYear", self.incYear)
-    # end __init__
 
-    def pressKey(self, key):
-        self.keyDict[key] = True
-        print(camera.getPos()[1])
-    def releaseKey(self, key):
-        self.keyDict[key] = False
-        print(key + ' got released')
+    def pressKey(self, key): self.keyDict[key] = True
+    def releaseKey(self, key): self.keyDict[key] = False
 
     def setCam(self, task):
         dt = globalClock.getDt()
-        if self.keyDict['up']: camera.setPos(camera.getPos()[0],camera.getPos()[1] + self.camSpeed * dt, 45)
-        elif self.keyDict['down']: camera.setPos(camera.getPos()[0],camera.getPos()[1] - self.camSpeed * dt, 45)
-        if self.keyDict['left']: camera.setPos(camera.getPos()[0] - self.camSpeed * dt,camera.getPos()[1], 45)
-        elif self.keyDict['right']: camera.setPos(camera.getPos()[0] + self.camSpeed * dt,camera.getPos()[1], 45)
+        if self.keyDict['up']: camera.setPos(camera.getPos()[0],camera.getPos()[1] + self.camSpeed * dt, camera.getPos()[2])
+        elif self.keyDict['down']: camera.setPos(camera.getPos()[0],camera.getPos()[1] - self.camSpeed * dt, camera.getPos()[2])
+        if self.keyDict['left']: camera.setPos(camera.getPos()[0] - self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
+        elif self.keyDict['right']: camera.setPos(camera.getPos()[0] + self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
         return task.cont
 
     def handleMouseClick(self):
-        # When the mouse is clicked, if the simulation is running pause all the
-        # planets and sun, otherwise resume it
-        if self.simRunning:
-            print("Pausing Simulation")
-            # changing the text to reflect the change from "RUNNING" to
-            # "PAUSED"
-            self.mouse1EventText.setText(
-                "Mouse Button 1: Toggle entire Solar System [PAUSED]")
-            # For each planet, check if it is moving and if so, pause it
-            # Sun
-            if self.day_period_sun.isPlaying():
-                self.togglePlanet("Sun", self.day_period_sun, None,
-                                  self.skeyEventText)
-            if self.day_period_mercury.isPlaying():
-                self.togglePlanet("Mercury", self.day_period_mercury,
-                                  self.orbit_period_mercury, self.ykeyEventText)
-            # Venus
-            if self.day_period_venus.isPlaying():
-                self.togglePlanet("Venus", self.day_period_venus,
-                                  self.orbit_period_venus, self.vkeyEventText)
-            #Earth and moon
-            if self.day_period_earth.isPlaying():
-                self.togglePlanet("Earth", self.day_period_earth,
-                                  self.orbit_period_earth, self.ekeyEventText)
-                self.togglePlanet("Moon", self.day_period_moon,
-                                  self.orbit_period_moon)
-            # Mars
-            if self.day_period_mars.isPlaying():
-                self.togglePlanet("Mars", self.day_period_mars,
-                                  self.orbit_period_mars, self.mkeyEventText)
-        else:
-            #"The simulation is paused, so resume it
-            print("Resuming Simulation")
-            self.mouse1EventText.setText(
-                "Mouse Button 1: Toggle entire Solar System [RUNNING]")
-            # the not operator does the reverse of the previous code
-            if not self.day_period_sun.isPlaying():
-                self.togglePlanet("Sun", self.day_period_sun, None,
-                                  self.skeyEventText)
-            if not self.day_period_mercury.isPlaying():
-                self.togglePlanet("Mercury", self.day_period_mercury,
-                                  self.orbit_period_mercury, self.ykeyEventText)
-            if not self.day_period_venus.isPlaying():
-                self.togglePlanet("Venus", self.day_period_venus,
-                                  self.orbit_period_venus, self.vkeyEventText)
-            if not self.day_period_earth.isPlaying():
-                self.togglePlanet("Earth", self.day_period_earth,
-                                  self.orbit_period_earth, self.ekeyEventText)
-                self.togglePlanet("Moon", self.day_period_moon,
-                                  self.orbit_period_moon)
-            if not self.day_period_mars.isPlaying():
-                self.togglePlanet("Mars", self.day_period_mars,
-                                  self.orbit_period_mars, self.mkeyEventText)
-        # toggle self.simRunning
-        self.simRunning = not self.simRunning
-    # end handleMouseClick
+        mpos = base.mouseWatcherNode.getMouse()
+        pickerRay.setFromLens(base.camNode, mpos.getX(), mpos.getY())
+        myTraverser.traverse(render)
+        # Assume for simplicity's sake that myHandler is a CollisionHandlerQueue.
+        if myHandler.getNumEntries() > 0:
+            # This is so we get the closest object.
+            myHandler.sortEntries()
+            pickedObj = myHandler.getEntry(0).getIntoNodePath()
+            pickedObj = pickedObj.findNetTag('myObjectTag')
+            if not pickedObj.isEmpty():
+                handlePickedObject(pickedObj)
 
-    # The togglePlanet function will toggle the intervals that are given to it
-    # between paused and playing.
-    # Planet is the name to print
-    # Day is the interval that spins the planet
-    # Orbit is the interval that moves around the orbit
-    # Text is the OnscreenText object that needs to be updated
-    def togglePlanet(self, planet, day, orbit=None, text=None):
-        if day.isPlaying():
-            print("Pausing " + planet)
-            state = " [PAUSED]"
-        else:
-            print("Resuming " + planet)
-            state = " [RUNNING]"
-
-        # Update the onscreen text if it is given as an argument
-        if text:
-            old = text.getText()
-            # strip out the last segment of text after the last white space
-            # and append the string stored in 'state'
-            text.setText(old[0:old.rfind(' ')] + state)
-
-        # toggle the day interval
-        self.toggleInterval(day)
-        # if there is an orbit interval, toggle it
-        if orbit:
-            self.toggleInterval(orbit)
-    # end togglePlanet
-
-    # toggleInterval does exactly as its name implies
-    # It takes an interval as an argument. Then it checks to see if it is playing.
-    # If it is, it pauses it, otherwise it resumes it.
     def toggleInterval(self, interval):
         if interval.isPlaying():
             interval.pause()
@@ -227,23 +125,11 @@ class World(DirectObject):
             interval.resume()
     # end toggleInterval
 
-    # Earth needs a special buffer function because the moon is tied to it
-    # When the "e" key is pressed, togglePlanet is called on both the earth and
-    # the moon.
-    def handleEarth(self):
-        self.togglePlanet("Earth", self.day_period_earth,
-                          self.orbit_period_earth, self.ekeyEventText)
-        self.togglePlanet("Moon", self.day_period_moon,
-                          self.orbit_period_moon)
-    # end handleEarth
-
     # the function incYear increments the variable yearCounter and then updates
     # the OnscreenText 'yearCounterText' every time the message "newYear" is
     # sent
     def incYear(self):
         self.yearCounter += 1
-        self.yearCounterText.setText(
-            str(self.yearCounter) + " Earth years completed")
     # end incYear
 
 
@@ -301,6 +187,7 @@ class World(DirectObject):
         self.earth.reparentTo(self.orbit_root_earth)
         self.earth.setScale(self.sizescale)
         self.earth.setPos(self.orbitscale, 0, 0)
+        self.earth.setTag('clickable', '1')
 
         self.orbit_root_moon.setPos(self.orbitscale, 0, 0)
 
@@ -324,15 +211,9 @@ class World(DirectObject):
         self.day_period_venus = self.venus.hprInterval(
             (243 * self.dayscale), (360, 0, 0))
 
-        # Here the earth interval has been changed to rotate like the rest of the
-        # planets and send a message before it starts turning again. To send a
-        # message, the call is simply messenger.send("message"). The "newYear"
-        # message is picked up by the accept("newYear"...) statement earlier, and
-        # calls the incYear function as a result
         self.orbit_period_earth = Sequence(
-            self.orbit_root_earth.hprInterval(
-                self.yearscale, (360, 0, 0)),
-            Func(messenger.send, "newYear"))
+            self.orbit_root_earth.hprInterval(self.yearscale, (360, 0, 0))
+            , Func(self.incYear))
         self.day_period_earth = self.earth.hprInterval(
             self.dayscale, (360, 0, 0))
 
