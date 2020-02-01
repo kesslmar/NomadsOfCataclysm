@@ -44,11 +44,14 @@ class World(DirectObject):
         # The global variables we used to control the speed and size of objects
         self.yearscale = 900
         self.dayscale = self.yearscale / 365.0 * 5
-        self.yearCounter = 0  # year counter for earth years
+        self.yearCounter = 0
+        self.dayCounter = 0
         self.orbitscale = 10
         self.sizescale = 0.6
         self.camSpeed = 10
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
+        self.followObject = None
+        self.followModeOn = False
 
         self.pickerNode = CollisionNode('mouseRay')
         self.pickerNP = camera.attachNewNode(self.pickerNode)
@@ -83,6 +86,8 @@ class World(DirectObject):
 
     def pressKey(self, key): self.keyDict[key] = True
     def releaseKey(self, key): self.keyDict[key] = False
+    def incYear(self): self.yearCounter += 1
+    def incDay(self): self.dayCounter += 1
 
     def setCam(self, task):
         dt = globalClock.getDt()
@@ -90,6 +95,11 @@ class World(DirectObject):
         elif self.keyDict['down']: camera.setPos(camera.getPos()[0],camera.getPos()[1] - self.camSpeed * dt, camera.getPos()[2])
         if self.keyDict['left']: camera.setPos(camera.getPos()[0] - self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
         elif self.keyDict['right']: camera.setPos(camera.getPos()[0] + self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
+        return task.cont
+
+    def followCam(self, task):
+        pos = self.followObject.getPos(base.render)
+        camera.setPos(pos[0], pos[1]-10, 10)
         return task.cont
 
     def handleMouseClick(self):
@@ -100,30 +110,28 @@ class World(DirectObject):
             self.collQueue.sortEntries()
             pickedObj = self.collQueue.getEntry(0).getIntoNodePath()
             pickedObj = pickedObj.findNetTag('clickable')
-            print(self.collQueue.getEntry(0))
             if not pickedObj.isEmpty():
-                print('\n' + pickedObj.getNetTag('clickable'))
-                print(pickedObj.getPos())
+                self.toggleFollowCam(pickedObj)
+
 
     def toggleInterval(self, interval):
         if interval.isPlaying():
             interval.pause()
         else:
             interval.resume()
-    # end toggleInterval
 
-    # the function incYear increments the variable yearCounter and then updates
-    # the OnscreenText 'yearCounterText' every time the message "newYear" is
-    # sent
-    def incYear(self):
-        self.yearCounter += 1
-    # end incYear
+    def toggleFollowCam(self, obj=None):
+        if not self.followModeOn:
+            self.followModeOn = True
+            taskMgr.add(self.followCam, 'followcamTask')
+            self.followObject = obj
+        else:
+            self.followModeOn = False
+            taskMgr.remove('followcamTask')
+            self.followObject = None
+            camera.setPos(camera.getPos()[0], camera.getPos()[1]-20, 30)
+        print('Follow Mode is now: ' + str(self.followModeOn))
 
-
-#########################################################################
-# Except for the one commented line below, this is all as it was before #
-# Scroll down to the next comment to see an example of sending messages #
-#########################################################################
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
@@ -206,8 +214,8 @@ class World(DirectObject):
         self.orbit_period_earth = Sequence(
             self.orbit_root_earth.hprInterval(self.yearscale, (360, 0, 0))
             , Func(self.incYear))
-        self.day_period_earth = self.earth.hprInterval(
-            self.dayscale, (360, 0, 0))
+        self.day_period_earth = Sequence(self.earth.hprInterval(
+            self.dayscale, (360, 0, 0)), Func(self.incDay))
 
         self.orbit_period_moon = self.orbit_root_moon.hprInterval(
             (.0749 * self.yearscale), (360, 0, 0))
@@ -230,7 +238,6 @@ class World(DirectObject):
         self.day_period_moon.loop()
         self.orbit_period_mars.loop()
         self.day_period_mars.loop()
-    # end RotatePlanets()
 
 # end class world
 
