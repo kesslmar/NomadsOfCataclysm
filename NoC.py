@@ -10,18 +10,18 @@
 # tutorial uses the same base code from the solar system tutorial.
 
 from direct.showbase.ShowBase import ShowBase
-base = ShowBase()
-
+from direct.showbase.DirectObject import DirectObject
 from panda3d.core import *
+from panda3d.core import WindowProperties
 from direct.interval.IntervalGlobal import *
 from direct.gui.DirectGui import *
-from direct.showbase.DirectObject import DirectObject
+
 import sys
 
-# We start this tutorial with the standard class. However, the class is a
-# subclass of an object called DirectObject. This gives the class the ability
-# to listen for and respond to events. From now on the main class in every
-# tutorial will be a subclass of DirectObject
+base = ShowBase()
+wp = WindowProperties()
+wp.setSize(1080, 600)
+base.win.requestProperties(wp)
 
 
 class World(DirectObject):
@@ -37,8 +37,8 @@ class World(DirectObject):
         # The standard camera position and background initialization
         base.setBackgroundColor(0, 0, 0)
         base.disableMouse()
-        camera.setPos(0, 0, 40)
-        camera.setHpr(0, -90, 0)
+        camera.setPos(0, -30, 30)
+        camera.setHpr(0, -45, 0)
         
 
         # The global variables we used to control the speed and size of objects
@@ -100,6 +100,7 @@ class World(DirectObject):
             self.collQueue.sortEntries()
             pickedObj = self.collQueue.getEntry(0).getIntoNodePath()
             pickedObj = pickedObj.findNetTag('clickable')
+            print(self.collQueue.getEntry(0))
             if not pickedObj.isEmpty():
                 print('\n' + pickedObj.getNetTag('clickable'))
                 print(pickedObj.getPos())
@@ -138,7 +139,7 @@ class World(DirectObject):
         self.sky_tex = loader.loadTexture("models/stars_1k_tex.jpg")
         self.sky.setTexture(self.sky_tex, 1)
         self.sky.reparentTo(render)
-        self.sky.setScale(40)
+        self.sky.setScale(100)
 
         self.sun = loader.loadModel("models/planet_sphere")
         self.sun_tex = loader.loadTexture("models/sun_1k_tex.jpg")
