@@ -37,8 +37,8 @@ class World(DirectObject):
         # The standard camera position and background initialization
         base.setBackgroundColor(0, 0, 0)
         base.disableMouse()
-        camera.setPos(0, -13, 40)
-        camera.setHpr(0, -70, 0)
+        camera.setPos(0, 0, 40)
+        camera.setHpr(0, -90, 0)
         
 
         # The global variables we used to control the speed and size of objects
@@ -69,18 +69,6 @@ class World(DirectObject):
             parent=base.a2dBottomRight, align=TextNode.A_right,
             style=1, fg=(1, 1, 1, 1), pos=(-0.1, 0.1), scale=.07)
 
-
-
-        # Events
-        # Each self.accept statement creates an event handler object that will call
-        # the specified function when that event occurs.
-        # Certain events like "mouse1", "a", "b", "c" ... "z", "1", "2", "3"..."0"
-        # are references to keyboard keys and mouse buttons. You can also define
-        # your own events to be used within your program. In this tutorial, the
-        # event "newYear" is not tied to a physical input device, but rather
-        # is sent by the function that rotates the Earth whenever a revolution
-        # completes to tell the counter to update
-        # Exit the program when escape is pressed
         self.accept("escape", sys.exit)
 
         self.accept("arrow_up", self.pressKey, ["up"])
@@ -91,7 +79,6 @@ class World(DirectObject):
         self.accept("arrow_left-up", self.releaseKey, ["left"])
         self.accept("arrow_right", self.pressKey, ["right"])
         self.accept("arrow_right-up", self.releaseKey, ["right"])
-
         self.accept("mouse1", self.handleMouseClick)
 
     def pressKey(self, key): self.keyDict[key] = True
@@ -107,16 +94,15 @@ class World(DirectObject):
 
     def handleMouseClick(self):
         mpos = base.mouseWatcherNode.getMouse()
-        pickerRay.setFromLens(base.camNode, mpos.getX(), mpos.getY())
-        myTraverser.traverse(render)
-        # Assume for simplicity's sake that myHandler is a CollisionHandlerQueue.
-        if myHandler.getNumEntries() > 0:
-            # This is so we get the closest object.
-            myHandler.sortEntries()
-            pickedObj = myHandler.getEntry(0).getIntoNodePath()
-            pickedObj = pickedObj.findNetTag('myObjectTag')
+        self.pickerRay.setFromLens(base.camNode, mpos.getX(), mpos.getY())
+        base.cTrav.traverse(render)
+        if self.collQueue.getNumEntries() > 0:
+            self.collQueue.sortEntries()
+            pickedObj = self.collQueue.getEntry(0).getIntoNodePath()
+            pickedObj = pickedObj.findNetTag('clickable')
             if not pickedObj.isEmpty():
-                handlePickedObject(pickedObj)
+                print('\n' + pickedObj.getNetTag('clickable'))
+                print(pickedObj.getPos())
 
     def toggleInterval(self, interval):
         if interval.isPlaying():
@@ -159,6 +145,7 @@ class World(DirectObject):
         self.sun.setTexture(self.sun_tex, 1)
         self.sun.reparentTo(render)
         self.sun.setScale(2 * self.sizescale)
+        self.sun.setTag('clickable', 'sun')
 
         self.mercury = loader.loadModel("models/planet_sphere")
         self.mercury_tex = loader.loadTexture("models/mercury_1k_tex.jpg")
@@ -166,6 +153,7 @@ class World(DirectObject):
         self.mercury.reparentTo(self.orbit_root_mercury)
         self.mercury.setPos(0.38 * self.orbitscale, 0, 0)
         self.mercury.setScale(0.385 * self.sizescale)
+        self.mercury.setTag('clickable', 'mercury')
 
         self.venus = loader.loadModel("models/planet_sphere")
         self.venus_tex = loader.loadTexture("models/venus_1k_tex.jpg")
@@ -173,6 +161,7 @@ class World(DirectObject):
         self.venus.reparentTo(self.orbit_root_venus)
         self.venus.setPos(0.72 * self.orbitscale, 0, 0)
         self.venus.setScale(0.923 * self.sizescale)
+        self.venus.setTag('clickable', 'venus')
 
         self.mars = loader.loadModel("models/planet_sphere")
         self.mars_tex = loader.loadTexture("models/mars_1k_tex.jpg")
@@ -180,6 +169,7 @@ class World(DirectObject):
         self.mars.reparentTo(self.orbit_root_mars)
         self.mars.setPos(1.52 * self.orbitscale, 0, 0)
         self.mars.setScale(0.515 * self.sizescale)
+        self.mars.setTag('clickable', 'mars')
 
         self.earth = loader.loadModel("models/planet_sphere")
         self.earth_tex = loader.loadTexture("models/earth_1k_tex.jpg")
@@ -187,7 +177,7 @@ class World(DirectObject):
         self.earth.reparentTo(self.orbit_root_earth)
         self.earth.setScale(self.sizescale)
         self.earth.setPos(self.orbitscale, 0, 0)
-        self.earth.setTag('clickable', '1')
+        self.earth.setTag('clickable', 'earth')
 
         self.orbit_root_moon.setPos(self.orbitscale, 0, 0)
 
@@ -197,6 +187,7 @@ class World(DirectObject):
         self.moon.reparentTo(self.orbit_root_moon)
         self.moon.setScale(0.1 * self.sizescale)
         self.moon.setPos(0.1 * self.orbitscale, 0, 0)
+        self.moon.setTag('clickable', 'moon')
 
     def rotatePlanets(self):
         self.day_period_sun = self.sun.hprInterval(20, (360, 0, 0))
