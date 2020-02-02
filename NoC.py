@@ -49,6 +49,7 @@ class World(DirectObject):
         self.orbitscale = 10
         self.sizescale = 0.6
         self.camSpeed = 10
+        self.zoomSpeed = 5
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
         self.followObject = None
         self.followObjectScale = 1
@@ -78,13 +79,23 @@ class World(DirectObject):
 
         self.accept("arrow_up", self.pressKey, ["up"])
         self.accept("arrow_up-up", self.releaseKey, ["up"])
+        self.accept("w", self.pressKey, ["up"])
+        self.accept("w-up", self.releaseKey, ["up"])
         self.accept("arrow_down", self.pressKey, ["down"])
         self.accept("arrow_down-up", self.releaseKey, ["down"])
+        self.accept("s", self.pressKey, ["down"])
+        self.accept("s-up", self.releaseKey, ["down"])
         self.accept("arrow_left", self.pressKey, ["left"])
         self.accept("arrow_left-up", self.releaseKey, ["left"])
+        self.accept("a", self.pressKey, ["left"])
+        self.accept("a-up", self.releaseKey, ["left"])
         self.accept("arrow_right", self.pressKey, ["right"])
         self.accept("arrow_right-up", self.releaseKey, ["right"])
+        self.accept("d", self.pressKey, ["right"])
+        self.accept("d-up", self.releaseKey, ["right"])
         self.accept("mouse1", self.handleMouseClick)
+        self.accept("wheel_up", self.handleZoom, ['in'])
+        self.accept("wheel_down", self.handleZoom, ['out'])
 
     def pressKey(self, key): self.keyDict[key] = True
     def releaseKey(self, key): self.keyDict[key] = False
@@ -98,7 +109,20 @@ class World(DirectObject):
         if self.keyDict['left']: camera.setPos(camera.getPos()[0] - self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
         elif self.keyDict['right']: camera.setPos(camera.getPos()[0] + self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
         return task.cont
-        
+
+    def handleZoom(self, direction):
+        dt = globalClock.getDt()
+        camPos = camera.getPos()
+        if not self.followModeOn:    
+            if direction == 'in' and camera.getPos()[2] > 5:
+                #camera.setPos(camera.getPos()[0],camera.getPos()[1] + self.zoomSpeed, camera.getPos()[2] - self.zoomSpeed)
+                zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]+self.zoomSpeed,camPos[2]-self.zoomSpeed,), camPos)
+                zoomInterval.start()
+            elif direction == 'out' and camera.getPos()[2] < 50:
+                #camera.setPos(camera.getPos()[0],camera.getPos()[1] - self.zoomSpeed, camera.getPos()[2] + self.zoomSpeed)
+                zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]-self.zoomSpeed,camPos[2]+self.zoomSpeed,), camPos)
+                zoomInterval.start()
+
 
     def handleMouseClick(self):
         mpos = base.mouseWatcherNode.getMouse()
