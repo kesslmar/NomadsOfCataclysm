@@ -51,7 +51,9 @@ class World(DirectObject):
         self.camSpeed = 10
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
         self.followObject = None
+        self.followObjectScale = 1
         self.followModeOn = False
+        self.planetDB = {}
 
         self.pickerNode = CollisionNode('mouseRay')
         self.pickerNP = camera.attachNewNode(self.pickerNode)
@@ -96,11 +98,7 @@ class World(DirectObject):
         if self.keyDict['left']: camera.setPos(camera.getPos()[0] - self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
         elif self.keyDict['right']: camera.setPos(camera.getPos()[0] + self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
         return task.cont
-
-    def followCam(self, task):
-        pos = self.followObject.getPos(base.render)
-        camera.setPos(pos[0], pos[1]-10, 10)
-        return task.cont
+        
 
     def handleMouseClick(self):
         mpos = base.mouseWatcherNode.getMouse()
@@ -113,25 +111,24 @@ class World(DirectObject):
             if not pickedObj.isEmpty():
                 self.toggleFollowCam(pickedObj)
 
-
-    def toggleInterval(self, interval):
-        if interval.isPlaying():
-            interval.pause()
-        else:
-            interval.resume()
-
     def toggleFollowCam(self, obj=None):
         if not self.followModeOn:
             self.followModeOn = True
             taskMgr.add(self.followCam, 'followcamTask')
             self.followObject = obj
+            self.followObjectScale = self.planetDB[obj.getNetTag('clickable')]['scale']
         else:
             self.followModeOn = False
             taskMgr.remove('followcamTask')
             self.followObject = None
+            self.followObjectScale = 1
             camera.setPos(camera.getPos()[0], camera.getPos()[1]-20, 30)
         print('Follow Mode is now: ' + str(self.followModeOn))
 
+    def followCam(self, task):
+        pos = self.followObject.getPos(base.render)
+        camera.setPos(pos[0], pos[1]-self.followObjectScale * 7, self.followObjectScale * 7)
+        return task.cont
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
@@ -149,47 +146,74 @@ class World(DirectObject):
         self.sky.reparentTo(render)
         self.sky.setScale(100)
 
+        self.planetDB.update({'sun':{
+            'scale':2, 'dist':0, 'type':'sun'}})
         self.sun = loader.loadModel("models/planet_sphere")
         self.sun_tex = loader.loadTexture("models/sun_1k_tex.jpg")
         self.sun.setTexture(self.sun_tex, 1)
         self.sun.reparentTo(render)
-        self.sun.setScale(2 * self.sizescale)
+        self.sun.setScale(self.planetDB['sun']['scale'] * self.sizescale)
         self.sun.setTag('clickable', 'sun')
 
+        self.planetDB.update({'mercury':{
+            'scale':0.385, 'dist':0.38, 'type':'planet',
+            'athm':False, 'wind':1, 'resc':{'coal':100, 'iron':50},
+            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
+            'devBlds':{}, 'habBlds':{} }})
         self.mercury = loader.loadModel("models/planet_sphere")
         self.mercury_tex = loader.loadTexture("models/mercury_1k_tex.jpg")
         self.mercury.setTexture(self.mercury_tex, 1)
         self.mercury.reparentTo(self.orbit_root_mercury)
-        self.mercury.setPos(0.38 * self.orbitscale, 0, 0)
-        self.mercury.setScale(0.385 * self.sizescale)
+        self.mercury.setPos(self.planetDB['mercury']['dist'] * self.orbitscale, 0, 0)
+        self.mercury.setScale(self.planetDB['mercury']['scale'] * self.sizescale)
         self.mercury.setTag('clickable', 'mercury')
 
+        self.planetDB.update({'venus':{
+            'scale':0.923, 'dist':0.72, 'type':'planet',
+            'athm':False, 'wind':2, 'resc':{'coal':100, 'iron':50},
+            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
+            'devBlds':{}, 'habBlds':{} }})
         self.venus = loader.loadModel("models/planet_sphere")
         self.venus_tex = loader.loadTexture("models/venus_1k_tex.jpg")
         self.venus.setTexture(self.venus_tex, 1)
         self.venus.reparentTo(self.orbit_root_venus)
-        self.venus.setPos(0.72 * self.orbitscale, 0, 0)
-        self.venus.setScale(0.923 * self.sizescale)
+        self.venus.setPos(self.planetDB['venus']['dist'] * self.orbitscale, 0, 0)
+        self.venus.setScale(self.planetDB['venus']['scale'] * self.sizescale)
         self.venus.setTag('clickable', 'venus')
 
+        self.planetDB.update({'mars':{
+            'scale':0.512, 'dist':1.52, 'type':'planet',
+            'athm':True, 'wind':1, 'resc':{'coal':100, 'iron':50},
+            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
+            'devBlds':{}, 'habBlds':{} }})
         self.mars = loader.loadModel("models/planet_sphere")
         self.mars_tex = loader.loadTexture("models/mars_1k_tex.jpg")
         self.mars.setTexture(self.mars_tex, 1)
         self.mars.reparentTo(self.orbit_root_mars)
-        self.mars.setPos(1.52 * self.orbitscale, 0, 0)
-        self.mars.setScale(0.515 * self.sizescale)
+        self.mars.setPos(self.planetDB['mars']['dist'] * self.orbitscale, 0, 0)
+        self.mars.setScale(self.planetDB['mars']['scale'] * self.sizescale)
         self.mars.setTag('clickable', 'mars')
 
+        self.planetDB.update({'earth':{
+            'scale':1, 'dist':1, 'type':'planet',
+            'athm':False, 'wind':1, 'resc':{'coal':100, 'iron':50},
+            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
+            'devBlds':{}, 'habBlds':{} }})
         self.earth = loader.loadModel("models/planet_sphere")
         self.earth_tex = loader.loadTexture("models/earth_1k_tex.jpg")
         self.earth.setTexture(self.earth_tex, 1)
         self.earth.reparentTo(self.orbit_root_earth)
-        self.earth.setScale(self.sizescale)
-        self.earth.setPos(self.orbitscale, 0, 0)
+        self.earth.setScale(self.planetDB['earth']['scale'] * self.sizescale)
+        self.earth.setPos(self.planetDB['earth']['dist'] * self.orbitscale, 0, 0)
         self.earth.setTag('clickable', 'earth')
 
         self.orbit_root_moon.setPos(self.orbitscale, 0, 0)
 
+        self.planetDB.update({'moon':{
+            'scale':0.1, 'dist':0.1, 'type':'moon',
+            'athm':False, 'wind':0, 'resc':{'coal':100, 'iron':50},
+            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
+            'devBlds':{}, 'habBlds':{} }})
         self.moon = loader.loadModel("models/planet_sphere")
         self.moon_tex = loader.loadTexture("models/moon_1k_tex.jpg")
         self.moon.setTexture(self.moon_tex, 1)
