@@ -65,6 +65,7 @@ class World(DirectObject):
         base.cTrav = CollisionTraverser('myTraverser')
         base.cTrav.addCollider(self.pickerNP, self.collQueue)
 
+        self.setUpGui()
         self.loadPlanets()  # Load, texture, and position the planets
         self.rotatePlanets()  # Set up the motion to start them moving
 
@@ -115,11 +116,9 @@ class World(DirectObject):
         camPos = camera.getPos()
         if not self.followModeOn:    
             if direction == 'in' and camera.getPos()[2] > 5:
-                #camera.setPos(camera.getPos()[0],camera.getPos()[1] + self.zoomSpeed, camera.getPos()[2] - self.zoomSpeed)
                 zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]+self.zoomSpeed,camPos[2]-self.zoomSpeed,), camPos)
                 zoomInterval.start()
             elif direction == 'out' and camera.getPos()[2] < 50:
-                #camera.setPos(camera.getPos()[0],camera.getPos()[1] - self.zoomSpeed, camera.getPos()[2] + self.zoomSpeed)
                 zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]-self.zoomSpeed,camPos[2]+self.zoomSpeed,), camPos)
                 zoomInterval.start()
 
@@ -153,6 +152,19 @@ class World(DirectObject):
         pos = self.followObject.getPos(base.render)
         camera.setPos(pos[0], pos[1]-self.followObjectScale * 7, self.followObjectScale * 7)
         return task.cont
+
+
+    #****************************************
+    #       Initialisation Functions        *
+    #****************************************
+
+    def setUpGui(self):
+        self.Calendar = OnscreenText(text='Year '+str(self.yearCounter)+', Day '+str(self.dayCounter), 
+            pos=(0.06, -.06), fg=(1, 1, 1, 1),
+            parent=base.a2dTopLeft,align=TextNode.ALeft, scale=.05)
+        self.PlanetViewBackButton = DirectButton(text=("Back"), scale=.1)
+        self.PlanetViewBackButton.setPos(0.06, -.1)
+        self.PlanetViewBackButton.hide()
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
