@@ -71,13 +71,7 @@ class World(DirectObject):
 
         taskMgr.add(self.setCam, "setcamTask")
 
-        self.title = OnscreenText(
-            text="Panda3D: Tutorial 3 - Events",
-            parent=base.a2dBottomRight, align=TextNode.A_right,
-            style=1, fg=(1, 1, 1, 1), pos=(-0.1, 0.1), scale=.07)
-
         self.accept("escape", sys.exit)
-
         self.accept("arrow_up", self.pressKey, ["up"])
         self.accept("arrow_up-up", self.releaseKey, ["up"])
         self.accept("w", self.pressKey, ["up"])
@@ -97,6 +91,7 @@ class World(DirectObject):
         self.accept("mouse1", self.handleMouseClick)
         self.accept("wheel_up", self.handleZoom, ['in'])
         self.accept("wheel_down", self.handleZoom, ['out'])
+
 
     def pressKey(self, key): self.keyDict[key] = True
     def releaseKey(self, key): self.keyDict[key] = False
@@ -122,7 +117,6 @@ class World(DirectObject):
                 zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]-self.zoomSpeed,camPos[2]+self.zoomSpeed,), camPos)
                 zoomInterval.start()
 
-
     def handleMouseClick(self):
         mpos = base.mouseWatcherNode.getMouse()
         self.pickerRay.setFromLens(base.camNode, mpos.getX(), mpos.getY())
@@ -132,25 +126,37 @@ class World(DirectObject):
             pickedObj = self.collQueue.getEntry(0).getIntoNodePath()
             pickedObj = pickedObj.findNetTag('clickable')
             if not pickedObj.isEmpty():
-                self.toggleFollowCam(pickedObj)
+                self.toggleFollowCam(True, pickedObj)
 
-    def toggleFollowCam(self, obj=None):
-        if not self.followModeOn:
+    def toggleFollowCam(self, mode=False, obj=None):
+        if mode:
             self.followModeOn = True
             taskMgr.add(self.followCam, 'followcamTask')
             self.followObject = obj
             self.followObjectScale = self.planetDB[obj.getNetTag('clickable')]['scale']
+            pos = self.followObject.getPos(base.render)
+            camPos = camera.getPos()
+            zoomInterval = camera.posInterval(0.2, Point3(pos[0]-self.followObjectScale * 1.5,
+                                                          pos[1]-self.followObjectScale * 4, 
+                                                          self.followObjectScale * 4), camPos)
+            zoomInterval.start()
+            self.PlanetViewBackButton.show()
         else:
             self.followModeOn = False
             taskMgr.remove('followcamTask')
             self.followObject = None
             self.followObjectScale = 1
-            camera.setPos(camera.getPos()[0], camera.getPos()[1]-20, 30)
-        print('Follow Mode is now: ' + str(self.followModeOn))
+            camPos = camera.getPos()
+            #zoomInterval = camera.posInterval(0.2, Point3(camPos[0],camPos[1]-self.followObjectScale*23,30), camPos)
+            zoomInterval = camera.posInterval(0.2, Point3(0, -30, 30), camPos)
+            zoomInterval.start()
+            self.PlanetViewBackButton.hide()
 
     def followCam(self, task):
         pos = self.followObject.getPos(base.render)
-        camera.setPos(pos[0], pos[1]-self.followObjectScale * 7, self.followObjectScale * 7)
+        camera.setPos(pos[0]-self.followObjectScale * 1.5, 
+                      pos[1]-self.followObjectScale * 4, 
+                      self.followObjectScale * 4)
         return task.cont
 
 
@@ -162,8 +168,8 @@ class World(DirectObject):
         self.Calendar = OnscreenText(text='Year '+str(self.yearCounter)+', Day '+str(self.dayCounter), 
             pos=(0.06, -.06), fg=(1, 1, 1, 1),
             parent=base.a2dTopLeft,align=TextNode.ALeft, scale=.05)
-        self.PlanetViewBackButton = DirectButton(text=("Back"), scale=.1)
-        self.PlanetViewBackButton.setPos(0.06, -.1)
+        self.PlanetViewBackButton = DirectButton(text=("Back"), scale=.1, 
+            pos=(-1.6,0,0.8), command=self.toggleFollowCam, extraArgs=[False])
         self.PlanetViewBackButton.hide()
 
     def loadPlanets(self):
