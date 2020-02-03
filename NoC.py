@@ -141,6 +141,7 @@ class World(DirectObject):
                                                           self.followObjectScale * 4), camPos)
             zoomInterval.start()
             self.PlanetInfoPanel.show()
+            self.fillPlanetInfo()
         else:
             self.PlanetInfoModeOn = False
             taskMgr.remove('followcamTask')
@@ -150,6 +151,7 @@ class World(DirectObject):
             zoomInterval = camera.posInterval(0.2, Point3(0, -30, 30), camPos)
             zoomInterval.start()
             self.PlanetInfoPanel.hide()
+            self.emptyPlanetInfo()
 
     def followCam(self, task):
         pos = self.followObject.getPos(base.render)
@@ -157,6 +159,19 @@ class World(DirectObject):
                       pos[1]-self.followObjectScale * 4, 
                       self.followObjectScale * 4)
         return task.cont
+
+    def fillPlanetInfo(self):
+        objID = self.followObject.getNetTag('clickable')
+        
+        PlanetInfoTitle = DirectLabel(text=self.planetDB[objID]['name'], 
+            pos=(-0.55, 0, 0.5), text_fg=(1,1,1,1), frameColor=(1,1,1,0), 
+            parent = self.PlanetInfoPanel, 
+            scale=0.13)
+        self.PlanetInfoPanelFilling.append(PlanetInfoTitle)
+    
+    def emptyPlanetInfo(self):
+        for element in self.PlanetInfoPanelFilling:
+            element.destroy()
 
 
     #****************************************
@@ -180,6 +195,8 @@ class World(DirectObject):
             command=self.togglePlanetInfoMode, extraArgs=[False])
         self.PlanetInfoBackButton.reparentTo(self.PlanetInfoPanel)
 
+        self.PlanetInfoPanelFilling = []
+
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
         self.orbit_root_venus = render.attachNewNode('orbit_root_venus')
@@ -197,7 +214,7 @@ class World(DirectObject):
         self.sky.setScale(100)
 
         self.planetDB.update({'sun':{
-            'scale':2, 'dist':0, 'type':'sun'}})
+            'name':'Sun', 'scale':2, 'dist':0, 'type':'sun'}})
         self.sun = loader.loadModel("models/planet_sphere")
         self.sun_tex = loader.loadTexture("models/sun_1k_tex.jpg")
         self.sun.setTexture(self.sun_tex, 1)
@@ -206,7 +223,7 @@ class World(DirectObject):
         self.sun.setTag('clickable', 'sun')
 
         self.planetDB.update({'mercury':{
-            'scale':0.385, 'dist':0.38, 'type':'planet',
+            'name':'Mercury', 'scale':0.385, 'dist':0.38, 'type':'planet',
             'athm':False, 'wind':1, 'resc':{'coal':100, 'iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
@@ -219,7 +236,7 @@ class World(DirectObject):
         self.mercury.setTag('clickable', 'mercury')
 
         self.planetDB.update({'venus':{
-            'scale':0.923, 'dist':0.72, 'type':'planet',
+            'name':'Venus', 'scale':0.923, 'dist':0.72, 'type':'planet',
             'athm':False, 'wind':2, 'resc':{'coal':100, 'iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
@@ -232,7 +249,7 @@ class World(DirectObject):
         self.venus.setTag('clickable', 'venus')
 
         self.planetDB.update({'mars':{
-            'scale':0.512, 'dist':1.52, 'type':'planet',
+            'name':'Mars', 'scale':0.512, 'dist':1.52, 'type':'planet',
             'athm':True, 'wind':1, 'resc':{'coal':100, 'iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
@@ -245,7 +262,7 @@ class World(DirectObject):
         self.mars.setTag('clickable', 'mars')
 
         self.planetDB.update({'earth':{
-            'scale':1, 'dist':1, 'type':'planet',
+            'name':'Earth', 'scale':1, 'dist':1, 'type':'planet',
             'athm':False, 'wind':1, 'resc':{'coal':100, 'iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
@@ -260,7 +277,7 @@ class World(DirectObject):
         self.orbit_root_moon.setPos(self.orbitscale, 0, 0)
 
         self.planetDB.update({'moon':{
-            'scale':0.1, 'dist':0.1, 'type':'moon',
+            'name':'Moon', 'scale':0.1, 'dist':0.1, 'type':'moon',
             'athm':False, 'wind':0, 'resc':{'coal':100, 'iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
