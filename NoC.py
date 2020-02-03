@@ -53,7 +53,7 @@ class World(DirectObject):
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
         self.followObject = None
         self.followObjectScale = 1
-        self.followModeOn = False
+        self.PlanetInfoModeOn = False
         self.planetDB = {}
 
         self.pickerNode = CollisionNode('mouseRay')
@@ -109,7 +109,7 @@ class World(DirectObject):
     def handleZoom(self, direction):
         dt = globalClock.getDt()
         camPos = camera.getPos()
-        if not self.followModeOn:    
+        if not self.PlanetInfoModeOn:    
             if direction == 'in' and camera.getPos()[2] > 5:
                 zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]+self.zoomSpeed,camPos[2]-self.zoomSpeed,), camPos)
                 zoomInterval.start()
@@ -126,11 +126,11 @@ class World(DirectObject):
             pickedObj = self.collQueue.getEntry(0).getIntoNodePath()
             pickedObj = pickedObj.findNetTag('clickable')
             if not pickedObj.isEmpty():
-                self.toggleFollowCam(True, pickedObj)
+                self.togglePlanetInfoMode(True, pickedObj)
 
-    def toggleFollowCam(self, mode=False, obj=None):
+    def togglePlanetInfoMode(self, mode=False, obj=None):
         if mode:
-            self.followModeOn = True
+            self.PlanetInfoModeOn = True
             taskMgr.add(self.followCam, 'followcamTask')
             self.followObject = obj
             self.followObjectScale = self.planetDB[obj.getNetTag('clickable')]['scale']
@@ -140,17 +140,16 @@ class World(DirectObject):
                                                           pos[1]-self.followObjectScale * 4, 
                                                           self.followObjectScale * 4), camPos)
             zoomInterval.start()
-            self.PlanetViewBackButton.show()
+            self.PlanetInfoPanel.show()
         else:
-            self.followModeOn = False
+            self.PlanetInfoModeOn = False
             taskMgr.remove('followcamTask')
             self.followObject = None
             self.followObjectScale = 1
             camPos = camera.getPos()
-            #zoomInterval = camera.posInterval(0.2, Point3(camPos[0],camPos[1]-self.followObjectScale*23,30), camPos)
             zoomInterval = camera.posInterval(0.2, Point3(0, -30, 30), camPos)
             zoomInterval.start()
-            self.PlanetViewBackButton.hide()
+            self.PlanetInfoPanel.hide()
 
     def followCam(self, task):
         pos = self.followObject.getPos(base.render)
@@ -168,9 +167,18 @@ class World(DirectObject):
         self.Calendar = OnscreenText(text='Year '+str(self.yearCounter)+', Day '+str(self.dayCounter), 
             pos=(0.06, -.06), fg=(1, 1, 1, 1),
             parent=base.a2dTopLeft,align=TextNode.ALeft, scale=.05)
-        self.PlanetViewBackButton = DirectButton(text=("Back"), scale=.1, 
-            pos=(-1.6,0,0.8), command=self.toggleFollowCam, extraArgs=[False])
-        self.PlanetViewBackButton.hide()
+
+        self.PlanetInfoPanel = DirectFrame(
+            frameColor=(0.15, 0.15, 0.15, 0.9),
+            frameSize=(-0.9, 0.9, -0.65, 0.65),
+            pos=(-0.8, 0, 0))
+        self.PlanetInfoPanel.hide()
+
+        self.PlanetInfoBackButton = DirectButton(text='Close', 
+            pos=(-0.745,0,0.7), pad=(0.05, 0.02), text_scale=0.08,
+            borderWidth=(0.01,0.01), frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+            command=self.togglePlanetInfoMode, extraArgs=[False])
+        self.PlanetInfoBackButton.reparentTo(self.PlanetInfoPanel)
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
