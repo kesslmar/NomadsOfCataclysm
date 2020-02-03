@@ -141,6 +141,7 @@ class World(DirectObject):
                                                           self.followObjectScale * 4), camPos)
             zoomInterval.start()
             self.PlanetInfoPanel.show()
+            self.emptyPlanetInfo()
             self.fillPlanetInfo()
         else:
             self.PlanetInfoModeOn = False
@@ -164,13 +165,35 @@ class World(DirectObject):
         objID = self.followObject.getNetTag('clickable')
         
         PlanetInfoTitle = DirectLabel(text=self.planetDB[objID]['name'], 
-            pos=(-0.55, 0, 0.5), text_fg=(1,1,1,1), frameColor=(1,1,1,0), 
-            parent = self.PlanetInfoPanel, 
-            scale=0.13)
-        self.PlanetInfoPanelFilling.append(PlanetInfoTitle)
+            pos=(-0.85, 0, 0.5), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
+            parent = self.PlanetInfoPanel, text_align=TextNode.ALeft, text_scale = 0.13
+            )
+        self.PlanetInfoPanelContent.append(PlanetInfoTitle)
     
+        PlanetInfoAttributesText = ('Type:\t\t' + str(self.planetDB[objID]['type']) + '\n'
+                      'Diameter:\t\t' + str(self.planetDB[objID]['scale'] * 10**5) + '\n'
+                      'Distance to Sun:\t' + str(self.planetDB[objID]['dist'] * 10**7) + '\n'
+                      'Athmosphere:\t' + str(self.planetDB[objID]['athm']) + '\n'
+                      'Windstrength:\t' + str(self.planetDB[objID]['wind']) + '\n')
+
+        PlanetInfoAttributesTable = DirectLabel(text=PlanetInfoAttributesText,
+            pos=(-0.85, 0, 0.4), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
+            parent = self.PlanetInfoPanel, text_align=TextNode.ALeft,
+            scale=0.13, text_scale=0.5)
+        self.PlanetInfoPanelContent.append(PlanetInfoAttributesTable)
+
+        PlanetInfoRescourceText = 'Rescources:\n'
+        for k,v in self.planetDB[objID]['resc'].items():
+            PlanetInfoRescourceText += k + ':\t\t' + str(v) + '\n'
+
+        PlanetInfoRescourceTable = DirectLabel(text=PlanetInfoRescourceText,
+            pos=(-0.85, 0, 0), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
+            parent = self.PlanetInfoPanel, text_align=TextNode.ALeft,
+            scale=0.13, text_scale=0.5)
+        self.PlanetInfoPanelContent.append(PlanetInfoRescourceTable)
+
     def emptyPlanetInfo(self):
-        for element in self.PlanetInfoPanelFilling:
+        for element in self.PlanetInfoPanelContent:
             element.destroy()
 
 
@@ -195,7 +218,7 @@ class World(DirectObject):
             command=self.togglePlanetInfoMode, extraArgs=[False])
         self.PlanetInfoBackButton.reparentTo(self.PlanetInfoPanel)
 
-        self.PlanetInfoPanelFilling = []
+        self.PlanetInfoPanelContent = []
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
@@ -214,7 +237,7 @@ class World(DirectObject):
         self.sky.setScale(100)
 
         self.planetDB.update({'sun':{
-            'name':'Sun', 'scale':2, 'dist':0, 'type':'sun'}})
+            'name':'Sun', 'scale':2, 'dist':0, 'type':'Star'}})
         self.sun = loader.loadModel("models/planet_sphere")
         self.sun_tex = loader.loadTexture("models/sun_1k_tex.jpg")
         self.sun.setTexture(self.sun_tex, 1)
@@ -223,8 +246,8 @@ class World(DirectObject):
         self.sun.setTag('clickable', 'sun')
 
         self.planetDB.update({'mercury':{
-            'name':'Mercury', 'scale':0.385, 'dist':0.38, 'type':'planet',
-            'athm':False, 'wind':1, 'resc':{'coal':100, 'iron':50},
+            'name':'Mercury', 'scale':0.385, 'dist':0.38, 'type':'Planet',
+            'athm':False, 'wind':1, 'resc':{'Coal':100, 'Iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
         self.mercury = loader.loadModel("models/planet_sphere")
@@ -236,8 +259,8 @@ class World(DirectObject):
         self.mercury.setTag('clickable', 'mercury')
 
         self.planetDB.update({'venus':{
-            'name':'Venus', 'scale':0.923, 'dist':0.72, 'type':'planet',
-            'athm':False, 'wind':2, 'resc':{'coal':100, 'iron':50},
+            'name':'Venus', 'scale':0.923, 'dist':0.72, 'type':'Planet',
+            'athm':False, 'wind':2, 'resc':{'Coal':100, 'Uranium':250},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
         self.venus = loader.loadModel("models/planet_sphere")
@@ -249,8 +272,8 @@ class World(DirectObject):
         self.venus.setTag('clickable', 'venus')
 
         self.planetDB.update({'mars':{
-            'name':'Mars', 'scale':0.512, 'dist':1.52, 'type':'planet',
-            'athm':True, 'wind':1, 'resc':{'coal':100, 'iron':50},
+            'name':'Mars', 'scale':0.512, 'dist':1.52, 'type':'Planet',
+            'athm':True, 'wind':1, 'resc':{'Noble Stone':100, 'Iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
         self.mars = loader.loadModel("models/planet_sphere")
@@ -262,8 +285,8 @@ class World(DirectObject):
         self.mars.setTag('clickable', 'mars')
 
         self.planetDB.update({'earth':{
-            'name':'Earth', 'scale':1, 'dist':1, 'type':'planet',
-            'athm':False, 'wind':1, 'resc':{'coal':100, 'iron':50},
+            'name':'Earth', 'scale':1, 'dist':1, 'type':'Planet',
+            'athm':False, 'wind':1, 'resc':{'Iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
         self.earth = loader.loadModel("models/planet_sphere")
@@ -277,8 +300,8 @@ class World(DirectObject):
         self.orbit_root_moon.setPos(self.orbitscale, 0, 0)
 
         self.planetDB.update({'moon':{
-            'name':'Moon', 'scale':0.1, 'dist':0.1, 'type':'moon',
-            'athm':False, 'wind':0, 'resc':{'coal':100, 'iron':50},
+            'name':'Moon', 'scale':0.1, 'dist':0.1, 'type':'Moon',
+            'athm':False, 'wind':0, 'resc':{'Coal':300, 'Iron':20},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
         self.moon = loader.loadModel("models/planet_sphere")
