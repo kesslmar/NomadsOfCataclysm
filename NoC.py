@@ -68,6 +68,7 @@ class World(DirectObject):
         self.setUpGui()
         self.loadPlanets()
         self.rotatePlanets()
+        self.fillBuildingsDB()
 
         taskMgr.add(self.setCam, "setcamTask")
 
@@ -242,12 +243,23 @@ class World(DirectObject):
             
             mySeq = Sequence(swipeOutInterval, Func(rename), swipeInInterval)      
             mySeq.start()
+            self.fillBuildPanel(section)
 
     def handleNewBuildSlot(self, newSlot):
         self.clearSelectedBuildSlot()
         self.ActiveBuildSlot = newSlot
         newSlot['relief'] = 'sunken'
 
+    def fillBuildPanel(self, section):
+        i = 0
+        for b in self.buildingsDB[section]:
+            newElement = DirectFrame(
+                frameColor=(0.15+i*0.1, 0.15, 0.15, 0.9),
+                frameSize=(-0.4, 0.4, -0.2, 0.2),
+                pos=(0, 0, 0.45-i*0.4))
+            newElement.reparentTo(self.PlanetBuildPanel)
+            self.PlanetBuildPanelContent.append(newElement)
+            i+=1
     def clearSelectedBuildSlot(self):
         if self.ActiveBuildSlot != None:
             self.ActiveBuildSlot['relief']='raised'
@@ -288,7 +300,6 @@ class World(DirectObject):
             command=self.togglePlanetBuildMode, extraArgs=[True])
         self.PlanetInfoBuildButton.reparentTo(self.PlanetInfoPanel)
 
-
         # All static gui elements for the planet build panel
         #---------------------------------------------------
         self.PlanetBuildPanel = DirectFrame(
@@ -312,11 +323,6 @@ class World(DirectObject):
             initialitem=0, highlightColor=(0.65, 0.65, 0.65, 1))
         self.PlanetBuildSectionDropdown.reparentTo(self.PlanetBuildPanel)
 
-        self.PlanetBuildPanelElement = DirectFrame(
-            frameColor=(0.15, 0.15, 0.15, 0.9),
-            frameSize=(-0.4, 0.4, -0.2, 0.2),
-            pos=(0, 0, 0.45))
-        self.PlanetBuildPanelElement.reparentTo(self.PlanetBuildPanel)
 
         # All static gui elements for the planet build slots
         #---------------------------------------------------
