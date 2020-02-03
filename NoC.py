@@ -33,7 +33,6 @@ class World(DirectObject):
         base.disableMouse()
         camera.setPos(0, -30, 30)
         camera.setHpr(0, -45, 0)
-        
 
         # The global variables we use to control the speed and size of objects
         self.yearscale = 900
@@ -48,10 +47,12 @@ class World(DirectObject):
         self.followObject = None
         self.followObjectScale = 1
         self.planetDB = {}
+        self.buildingsDB = {}
 
         self.PlanetInfoModeOn = False
         self.PlanetBuildModeOn = False
         self.PlanetBuildSection  = 'RESC' #Is either RESC, PROD, ENRG, DEV, HAB
+        self.ActiveBuildSlot = None
 
         # Everything that's needed to detect selecting objects with mouse
         self.pickerNode = CollisionNode('mouseRay')
@@ -101,6 +102,7 @@ class World(DirectObject):
     def incYear(self): self.yearCounter += 1
     def incDay(self): self.dayCounter += 1
 
+
     #****************************************
     #            Main Functions             *
     #****************************************
@@ -123,6 +125,13 @@ class World(DirectObject):
             elif direction == 'out' and camera.getPos()[2] < 50:
                 zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]-self.zoomSpeed,camPos[2]+self.zoomSpeed,), camPos)
                 zoomInterval.start()
+
+    def followCam(self, task):
+        pos = self.followObject.getPos(base.render)
+        camera.setPos(pos[0]-self.followObjectScale * 1.5, 
+                      pos[1]-self.followObjectScale * 4, 
+                      self.followObjectScale * 4)
+        return task.cont
 
     def handleMouseClick(self):
         mpos = base.mouseWatcherNode.getMouse()
@@ -170,16 +179,9 @@ class World(DirectObject):
             self.PlanetBuildPanel.hide()
             self.fillPlanetInfo()
             self.PlanetInfoPanel.show()
-
+            self.clearSelectedBuildSlot()
 
         return None
-
-    def followCam(self, task):
-        pos = self.followObject.getPos(base.render)
-        camera.setPos(pos[0]-self.followObjectScale * 1.5, 
-                      pos[1]-self.followObjectScale * 4, 
-                      self.followObjectScale * 4)
-        return task.cont
 
     def fillPlanetInfo(self):
         # Fills the content of the planet info gui every time a planet gets selected
@@ -218,10 +220,16 @@ class World(DirectObject):
                 scale=0.13, text_scale=0.5)
             self.PlanetInfoPanelContent.append(PlanetInfoRescourceTable)
 
+    def emptyPlanetInfo(self):
+        for element in self.PlanetInfoPanelContent:
+            element.destroy()
+
     def switchBuildSection(self, section):
         if section != self.PlanetBuildSection:
-            pos = self.PlanetBuildSlot1.getPos()
-            swipeOutInterval = self.PlanetBuildSlot1.posInterval(0.1, Point3(pos[0],pos[1],pos[2]+2), pos)
+            self.clearSelectedBuildSlot()
+            self.PlanetBuildSection = section
+            pos = self.PlanetBuildSlotContainer.getPos()
+            swipeOutInterval = self.PlanetBuildSlotContainer.posInterval(0.1, Point3(pos[0],pos[1],pos[2]+2), pos)
 
             def rename():
                 self.PlanetBuildSlot1['text'] = section[0] + '1'
@@ -230,14 +238,21 @@ class World(DirectObject):
                 self.PlanetBuildSlot4['text'] = section[0] + '4'
                 self.PlanetBuildSlot5['text'] = section[0] + '5'
 
-            swipeInInterval = self.PlanetBuildSlot1.posInterval(0.1, pos, Point3(pos[0],pos[1],pos[2]-2))
+            swipeInInterval = self.PlanetBuildSlotContainer.posInterval(0.1, pos, Point3(pos[0],pos[1],pos[2]-2))
             
             mySeq = Sequence(swipeOutInterval, Func(rename), swipeInInterval)      
             mySeq.start()
 
-    def emptyPlanetInfo(self):
-        for element in self.PlanetInfoPanelContent:
-            element.destroy()
+    def handleNewBuildSlot(self, newSlot):
+        self.clearSelectedBuildSlot()
+        self.ActiveBuildSlot = newSlot
+        newSlot['relief'] = 'sunken'
+
+    def clearSelectedBuildSlot(self):
+        if self.ActiveBuildSlot != None:
+            self.ActiveBuildSlot['relief']='raised'
+            self.ActiveBuildSlot = None
+
 
 
     #****************************************
@@ -274,11 +289,11 @@ class World(DirectObject):
         self.PlanetInfoBuildButton.reparentTo(self.PlanetInfoPanel)
 
 
-        # All static gui elements for the planet build screen
-        #----------------------------------------------------
+        # All static gui elements for the planet build panel
+        #---------------------------------------------------
         self.PlanetBuildPanel = DirectFrame(
             frameColor=(0.15, 0.15, 0.15, 0.9),
-            frameSize=(-0.4, 0.4, -0.65, 0.65),
+            frameSize=(-0.4, 0.4, 0.65, -0.65),
             pos=(-1.3, 0, 0))
         self.PlanetBuildPanel.hide()
 
@@ -297,48 +312,63 @@ class World(DirectObject):
             initialitem=0, highlightColor=(0.65, 0.65, 0.65, 1))
         self.PlanetBuildSectionDropdown.reparentTo(self.PlanetBuildPanel)
 
+        self.PlanetBuildPanelElement = DirectFrame(
+            frameColor=(0.15, 0.15, 0.15, 0.9),
+            frameSize=(-0.4, 0.4, -0.2, 0.2),
+            pos=(0, 0, 0.45))
+        self.PlanetBuildPanelElement.reparentTo(self.PlanetBuildPanel)
+
+        # All static gui elements for the planet build slots
+        #---------------------------------------------------
+        self.PlanetBuildSlotContainer = DirectFrame(pos=(0,0,0), frameColor=(0,0,0,0))
+        self.PlanetBuildSlotContainer.reparentTo(self.PlanetBuildPanel)
 
         self.PlanetBuildSlot1 = DirectButton(text='R1', 
             pos=(1.7,0,0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
-            command=self.togglePlanetBuildMode, extraArgs=[True])
-        self.PlanetBuildSlot1.reparentTo(self.PlanetBuildPanel)
+            command=self.handleNewBuildSlot)
+        self.PlanetBuildSlot1['extraArgs'] = [self.PlanetBuildSlot1]
+        self.PlanetBuildSlot1.reparentTo(self.PlanetBuildSlotContainer)
 
         self.PlanetBuildSlot2 = DirectButton(text='R2', 
             pos=(1.7,0,-0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
-            command=self.togglePlanetBuildMode, extraArgs=[True])
-        self.PlanetBuildSlot2.reparentTo(self.PlanetBuildPanel)
+            command=self.handleNewBuildSlot)
+        self.PlanetBuildSlot2['extraArgs'] = [self.PlanetBuildSlot2]
+        self.PlanetBuildSlot2.reparentTo(self.PlanetBuildSlotContainer)
 
         self.PlanetBuildSlot3 = DirectButton(text='R3', 
             pos=(1.4,0,0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.togglePlanetBuildMode, extraArgs=[True], state='DISABLED')
-        self.PlanetBuildSlot3.reparentTo(self.PlanetBuildPanel)
+            command=self.handleNewBuildSlot, state='DISABLED')
+        self.PlanetBuildSlot3['extraArgs'] = [self.PlanetBuildSlot3]
+        self.PlanetBuildSlot3.reparentTo(self.PlanetBuildSlotContainer)
 
         self.PlanetBuildSlot4 = DirectButton(text='R4', 
             pos=(1.4,0,0), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.togglePlanetBuildMode, extraArgs=[True], state='DISABLED')
-        self.PlanetBuildSlot4.reparentTo(self.PlanetBuildPanel)
+            command=self.handleNewBuildSlot, state='DISABLED')
+        self.PlanetBuildSlot4['extraArgs'] = [self.PlanetBuildSlot4]
+        self.PlanetBuildSlot4.reparentTo(self.PlanetBuildSlotContainer)
 
         self.PlanetBuildSlot5 = DirectButton(text='R5', 
             pos=(1.4,0,-0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.togglePlanetBuildMode, extraArgs=[True], state='DISABLED')
-        self.PlanetBuildSlot5.reparentTo(self.PlanetBuildPanel)
+            command=self.handleNewBuildSlot, state='DISABLED')
+        self.PlanetBuildSlot5['extraArgs'] = [self.PlanetBuildSlot5]
+        self.PlanetBuildSlot5.reparentTo(self.PlanetBuildSlotContainer)
 
         self.PlanetBuildWire1 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(0,1,0,1),
             pos=(1.7,-0.5,-0.035))
-        self.PlanetBuildWire1.reparentTo(self.PlanetBuildPanel)
+        self.PlanetBuildWire1.reparentTo(self.PlanetBuildSlotContainer)
 
         self.PlanetBuildWire2 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
             pos=(1.4,-0.5, 0.165))
-        self.PlanetBuildWire2.reparentTo(self.PlanetBuildPanel)
+        self.PlanetBuildWire2.reparentTo(self.PlanetBuildSlotContainer)
 
         self.PlanetBuildWire3 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
             pos=(1.4,-0.5,-0.235))
-        self.PlanetBuildWire3.reparentTo(self.PlanetBuildPanel)
+        self.PlanetBuildWire3.reparentTo(self.PlanetBuildSlotContainer)
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
@@ -472,6 +502,40 @@ class World(DirectObject):
         self.day_period_moon.loop()
         self.orbit_period_mars.loop()
         self.day_period_mars.loop()
+
+    def fillBuildingsDB(self):
+        self.buildingsDB = {
+            'RESC':{
+                'Cole Drill': 300,
+                'Iron Mine': 450,
+                'Uranium Site': 600,
+                'Organic Farm': 250,
+            },
+            'PROD':{
+                'Weapon Forge': 500,
+                'Ship Yard': 550,
+                'Uranium Enricher': 750
+            },
+            'ENRG':{
+                'Wind Turbine': 150,
+                'Cole Generator': 300,
+                'Microwave Transmitter': 500,
+                'Nuclear Reactor': 800,
+                'Dyson Sphere': 3200
+            },
+            'DEV':{
+                'Interpl. Trading Center': 575,
+                'Milkyway University': 350,
+                'Galactic Science Inst.': 500,
+                'Space Port': 150
+            },
+            'HAB':{
+                'Habitation Pod Village': 150,
+                'Skyscraper City': 400,
+                'Sol Resort': 625,
+                'Automated Hospital': 300
+            }
+        }
 
 # end class world
 
