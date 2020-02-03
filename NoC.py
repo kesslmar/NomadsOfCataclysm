@@ -218,6 +218,23 @@ class World(DirectObject):
                 scale=0.13, text_scale=0.5)
             self.PlanetInfoPanelContent.append(PlanetInfoRescourceTable)
 
+    def switchBuildSection(self, section):
+        if section != self.PlanetBuildSection:
+            pos = self.PlanetBuildSlot1.getPos()
+            swipeOutInterval = self.PlanetBuildSlot1.posInterval(0.1, Point3(pos[0],pos[1],pos[2]+2), pos)
+
+            def rename():
+                self.PlanetBuildSlot1['text'] = section[0] + '1'
+                self.PlanetBuildSlot2['text'] = section[0] + '2'
+                self.PlanetBuildSlot3['text'] = section[0] + '3'
+                self.PlanetBuildSlot4['text'] = section[0] + '4'
+                self.PlanetBuildSlot5['text'] = section[0] + '5'
+
+            swipeInInterval = self.PlanetBuildSlot1.posInterval(0.1, pos, Point3(pos[0],pos[1],pos[2]-2))
+            
+            mySeq = Sequence(swipeOutInterval, Func(rename), swipeInInterval)      
+            mySeq.start()
+
     def emptyPlanetInfo(self):
         for element in self.PlanetInfoPanelContent:
             element.destroy()
@@ -276,40 +293,40 @@ class World(DirectObject):
         self.PlanetBuildSectionDropdown = DirectOptionMenu(text="options", 
             pos=(-0.1,0,0.68),pad=(1.7, 1), borderWidth=(0.06,0.06),
             scale=0.15, text_scale=0.5, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            items=["RESC", "PROD", "ENRG", "DEV", "HAB"], 
-            initialitem=2, highlightColor=(0.65, 0.65, 0.65, 1))
+            items=["RESC", "PROD", "ENRG", "DEV", "HAB"], command=self.switchBuildSection, 
+            initialitem=0, highlightColor=(0.65, 0.65, 0.65, 1))
         self.PlanetBuildSectionDropdown.reparentTo(self.PlanetBuildPanel)
 
 
-        self.PlanetBuildSlotButton1 = DirectButton(text='R1', 
+        self.PlanetBuildSlot1 = DirectButton(text='R1', 
             pos=(1.7,0,0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
             command=self.togglePlanetBuildMode, extraArgs=[True])
-        self.PlanetBuildSlotButton1.reparentTo(self.PlanetBuildPanel)
+        self.PlanetBuildSlot1.reparentTo(self.PlanetBuildPanel)
 
-        self.PlanetBuildSlotButton2 = DirectButton(text='R2', 
+        self.PlanetBuildSlot2 = DirectButton(text='R2', 
             pos=(1.7,0,-0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
             command=self.togglePlanetBuildMode, extraArgs=[True])
-        self.PlanetBuildSlotButton2.reparentTo(self.PlanetBuildPanel)
+        self.PlanetBuildSlot2.reparentTo(self.PlanetBuildPanel)
 
-        self.PlanetBuildSlotButton3 = DirectButton(text='R3', 
+        self.PlanetBuildSlot3 = DirectButton(text='R3', 
             pos=(1.4,0,0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
             command=self.togglePlanetBuildMode, extraArgs=[True], state='DISABLED')
-        self.PlanetBuildSlotButton3.reparentTo(self.PlanetBuildPanel)
+        self.PlanetBuildSlot3.reparentTo(self.PlanetBuildPanel)
 
-        self.PlanetBuildSlotButton4 = DirectButton(text='R4', 
+        self.PlanetBuildSlot4 = DirectButton(text='R4', 
             pos=(1.4,0,0), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
             command=self.togglePlanetBuildMode, extraArgs=[True], state='DISABLED')
-        self.PlanetBuildSlotButton4.reparentTo(self.PlanetBuildPanel)
+        self.PlanetBuildSlot4.reparentTo(self.PlanetBuildPanel)
 
-        self.PlanetBuildSlotButton5 = DirectButton(text='R5', 
+        self.PlanetBuildSlot5 = DirectButton(text='R5', 
             pos=(1.4,0,-0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
             command=self.togglePlanetBuildMode, extraArgs=[True], state='DISABLED')
-        self.PlanetBuildSlotButton5.reparentTo(self.PlanetBuildPanel)
+        self.PlanetBuildSlot5.reparentTo(self.PlanetBuildPanel)
 
         self.PlanetBuildWire1 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(0,1,0,1),
             pos=(1.7,-0.5,-0.035))
@@ -322,7 +339,6 @@ class World(DirectObject):
         self.PlanetBuildWire3 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
             pos=(1.4,-0.5,-0.235))
         self.PlanetBuildWire3.reparentTo(self.PlanetBuildPanel)
-
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
