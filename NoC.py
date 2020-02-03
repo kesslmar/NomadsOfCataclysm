@@ -47,8 +47,11 @@ class World(DirectObject):
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
         self.followObject = None
         self.followObjectScale = 1
-        self.PlanetInfoModeOn = False
         self.planetDB = {}
+
+        self.PlanetInfoModeOn = False
+        self.PlanetBuildModeOn = False
+        self.PlanetBuildSection  = 'RESC' #Is either RESC, PROD, ENRG, DEV, HAB
 
         # Everything that's needed to detect selecting objects with mouse
         self.pickerNode = CollisionNode('mouseRay')
@@ -63,7 +66,7 @@ class World(DirectObject):
         # Set up the start screen
         self.setUpGui()
         self.loadPlanets()
-        self.rotatePlanets()  
+        self.rotatePlanets()
 
         taskMgr.add(self.setCam, "setcamTask")
 
@@ -129,7 +132,7 @@ class World(DirectObject):
             self.collQueue.sortEntries()
             pickedObj = self.collQueue.getEntry(0).getIntoNodePath()
             pickedObj = pickedObj.findNetTag('clickable')
-            if not pickedObj.isEmpty():
+            if not pickedObj.isEmpty() and not self.PlanetInfoModeOn:
                 self.togglePlanetInfoMode(True, pickedObj)
 
     def togglePlanetInfoMode(self, mode=False, obj=None):
@@ -144,9 +147,9 @@ class World(DirectObject):
                                                           pos[1]-self.followObjectScale * 4, 
                                                           self.followObjectScale * 4), camPos)
             zoomInterval.start()
-            self.PlanetInfoPanel.show()
             self.emptyPlanetInfo()
             self.fillPlanetInfo()
+            self.PlanetInfoPanel.show()
         else:
             self.PlanetInfoModeOn = False
             taskMgr.remove('followcamTask')
@@ -158,6 +161,19 @@ class World(DirectObject):
             self.PlanetInfoPanel.hide()
             self.emptyPlanetInfo()
 
+    def togglePlanetBuildMode(self, mode=False):
+        if mode==True:
+            self.PlanetInfoPanel.hide()
+            self.emptyPlanetInfo()
+            self.PlanetBuildPanel.show()
+        else:
+            self.PlanetBuildPanel.hide()
+            self.fillPlanetInfo()
+            self.PlanetInfoPanel.show()
+
+
+        return None
+
     def followCam(self, task):
         pos = self.followObject.getPos(base.render)
         camera.setPos(pos[0]-self.followObjectScale * 1.5, 
@@ -166,6 +182,8 @@ class World(DirectObject):
         return task.cont
 
     def fillPlanetInfo(self):
+        # Fills the content of the planet info gui every time a planet gets selected
+
         objID = self.followObject.getNetTag('clickable')
         
         PlanetInfoTitle = DirectLabel(text=self.planetDB[objID]['name'], 
@@ -174,11 +192,14 @@ class World(DirectObject):
             )
         self.PlanetInfoPanelContent.append(PlanetInfoTitle)
     
-        PlanetInfoAttributesText = ('Type:\t\t' + str(self.planetDB[objID]['type']) + '\n'
-                      'Diameter:\t\t' + str(self.planetDB[objID]['scale'] * 10**5) + '\n'
-                      'Distance to Sun:\t' + str(self.planetDB[objID]['dist'] * 10**7) + '\n'
-                      'Athmosphere:\t' + str(self.planetDB[objID]['athm']) + '\n'
-                      'Windstrength:\t' + str(self.planetDB[objID]['wind']) + '\n')
+        PlanetInfoAttributesText = (
+            'Type:\t\t' + str(self.planetDB[objID]['type']) + '\n'
+            'Diameter:\t\t' + str(self.planetDB[objID]['scale'] * 10**5) + '\n')
+        if self.planetDB[objID]['type'] != "Star":
+            PlanetInfoAttributesText += (
+                'Distance to Sun:\t' + str(self.planetDB[objID]['dist'] * 10**7) + '\n'
+                'Athmosphere:\t' + str(self.planetDB[objID]['athm']) + '\n'
+                'Windstrength:\t' + str(self.planetDB[objID]['wind']) + '\n')
 
         PlanetInfoAttributesTable = DirectLabel(text=PlanetInfoAttributesText,
             pos=(-0.85, 0, 0.4), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
@@ -186,15 +207,16 @@ class World(DirectObject):
             scale=0.13, text_scale=0.5)
         self.PlanetInfoPanelContent.append(PlanetInfoAttributesTable)
 
-        PlanetInfoRescourceText = 'Rescources:\n'
-        for k,v in self.planetDB[objID]['resc'].items():
-            PlanetInfoRescourceText += k + ':\t\t' + str(v) + '\n'
+        if self.planetDB[objID]['type'] != "Star":
+            PlanetInfoRescourceText = 'Rescources:\n'
+            for k,v in self.planetDB[objID]['resc'].items():
+                PlanetInfoRescourceText += k + ':\t\t' + str(v) + '\n'
 
-        PlanetInfoRescourceTable = DirectLabel(text=PlanetInfoRescourceText,
-            pos=(-0.85, 0, 0), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
-            parent = self.PlanetInfoPanel, text_align=TextNode.ALeft,
-            scale=0.13, text_scale=0.5)
-        self.PlanetInfoPanelContent.append(PlanetInfoRescourceTable)
+            PlanetInfoRescourceTable = DirectLabel(text=PlanetInfoRescourceText,
+                pos=(-0.85, 0, 0), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
+                parent = self.PlanetInfoPanel, text_align=TextNode.ALeft,
+                scale=0.13, text_scale=0.5)
+            self.PlanetInfoPanelContent.append(PlanetInfoRescourceTable)
 
     def emptyPlanetInfo(self):
         for element in self.PlanetInfoPanelContent:
@@ -206,23 +228,101 @@ class World(DirectObject):
     #****************************************
 
     def setUpGui(self):
+        # Constant visible gui elements
+        #------------------------------
         self.Calendar = OnscreenText(text='Year '+str(self.yearCounter)+', Day '+str(self.dayCounter), 
             pos=(0.06, -.06), fg=(1, 1, 1, 1),
             parent=base.a2dTopLeft,align=TextNode.ALeft, scale=.05)
 
+        # All static gui elements for the planet info screen
+        #---------------------------------------------------
         self.PlanetInfoPanel = DirectFrame(
             frameColor=(0.15, 0.15, 0.15, 0.9),
             frameSize=(-0.9, 0.9, -0.65, 0.65),
             pos=(-0.8, 0, 0))
         self.PlanetInfoPanel.hide()
 
-        self.PlanetInfoBackButton = DirectButton(text='Close', 
-            pos=(-0.745,0,0.7), pad=(0.05, 0.02), text_scale=0.08,
-            borderWidth=(0.01,0.01), frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.togglePlanetInfoMode, extraArgs=[False])
-        self.PlanetInfoBackButton.reparentTo(self.PlanetInfoPanel)
-
         self.PlanetInfoPanelContent = []
+
+        self.PlanetInfoCloseButton = DirectButton(text='Close', 
+            pos=(-0.745,0,0.7), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+            command=self.togglePlanetInfoMode, extraArgs=[False])
+        self.PlanetInfoCloseButton.reparentTo(self.PlanetInfoPanel)
+
+        self.PlanetInfoBuildButton = DirectButton(text='Build', 
+            pos=(1.8,0,-0.61), pad=(0.06, 0.02), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+            command=self.togglePlanetBuildMode, extraArgs=[True])
+        self.PlanetInfoBuildButton.reparentTo(self.PlanetInfoPanel)
+
+
+        # All static gui elements for the planet build screen
+        #----------------------------------------------------
+        self.PlanetBuildPanel = DirectFrame(
+            frameColor=(0.15, 0.15, 0.15, 0.9),
+            frameSize=(-0.4, 0.4, -0.65, 0.65),
+            pos=(-1.3, 0, 0))
+        self.PlanetBuildPanel.hide()
+
+        self.PlanetBuildPanelContent = []
+
+        self.PlanetBuildCloseButton = DirectButton(text='Back', 
+            pos=(-0.26,0,0.7), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+            command=self.togglePlanetBuildMode, extraArgs=[False])
+        self.PlanetBuildCloseButton.reparentTo(self.PlanetBuildPanel)
+
+        self.PlanetBuildSectionDropdown = DirectOptionMenu(text="options", 
+            pos=(-0.1,0,0.68),pad=(1.7, 1), borderWidth=(0.06,0.06),
+            scale=0.15, text_scale=0.5, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+            items=["RESC", "PROD", "ENRG", "DEV", "HAB"], 
+            initialitem=2, highlightColor=(0.65, 0.65, 0.65, 1))
+        self.PlanetBuildSectionDropdown.reparentTo(self.PlanetBuildPanel)
+
+
+        self.PlanetBuildSlotButton1 = DirectButton(text='R1', 
+            pos=(1.7,0,0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
+            command=self.togglePlanetBuildMode, extraArgs=[True])
+        self.PlanetBuildSlotButton1.reparentTo(self.PlanetBuildPanel)
+
+        self.PlanetBuildSlotButton2 = DirectButton(text='R2', 
+            pos=(1.7,0,-0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
+            command=self.togglePlanetBuildMode, extraArgs=[True])
+        self.PlanetBuildSlotButton2.reparentTo(self.PlanetBuildPanel)
+
+        self.PlanetBuildSlotButton3 = DirectButton(text='R3', 
+            pos=(1.4,0,0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
+            command=self.togglePlanetBuildMode, extraArgs=[True], state='DISABLED')
+        self.PlanetBuildSlotButton3.reparentTo(self.PlanetBuildPanel)
+
+        self.PlanetBuildSlotButton4 = DirectButton(text='R4', 
+            pos=(1.4,0,0), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
+            command=self.togglePlanetBuildMode, extraArgs=[True], state='DISABLED')
+        self.PlanetBuildSlotButton4.reparentTo(self.PlanetBuildPanel)
+
+        self.PlanetBuildSlotButton5 = DirectButton(text='R5', 
+            pos=(1.4,0,-0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
+            command=self.togglePlanetBuildMode, extraArgs=[True], state='DISABLED')
+        self.PlanetBuildSlotButton5.reparentTo(self.PlanetBuildPanel)
+
+        self.PlanetBuildWire1 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(0,1,0,1),
+            pos=(1.7,-0.5,-0.035))
+        self.PlanetBuildWire1.reparentTo(self.PlanetBuildPanel)
+
+        self.PlanetBuildWire2 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
+            pos=(1.4,-0.5, 0.165))
+        self.PlanetBuildWire2.reparentTo(self.PlanetBuildPanel)
+
+        self.PlanetBuildWire3 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
+            pos=(1.4,-0.5,-0.235))
+        self.PlanetBuildWire3.reparentTo(self.PlanetBuildPanel)
+
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
@@ -277,7 +377,7 @@ class World(DirectObject):
 
         self.planetDB.update({'mars':{
             'name':'Mars', 'scale':0.512, 'dist':1.52, 'type':'Planet',
-            'athm':True, 'wind':1, 'resc':{'Noble Stone':100, 'Iron':50},
+            'athm':True, 'wind':1, 'resc':{'Noblestone':100, 'Iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
         self.mars = loader.loadModel("models/planet_sphere")
@@ -305,7 +405,7 @@ class World(DirectObject):
 
         self.planetDB.update({'moon':{
             'name':'Moon', 'scale':0.1, 'dist':0.1, 'type':'Moon',
-            'athm':False, 'wind':0, 'resc':{'Coal':300, 'Iron':20},
+            'athm':False, 'wind':0, 'resc':{'Coal':300, 'Cheese':20},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
         self.moon = loader.loadModel("models/planet_sphere")
