@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-# Author: Shao Zhang and Phil Saltzman
-# Last Updated: 2015-03-13
+# Author: Markus Kessler (Git: kesslmar)
+# Last Updated: 2020-02-03
 #
-# This tutorial will cover events and how they can be used in Panda
-# Specifically, this lesson will use events to capture keyboard presses and
-# mouse clicks to trigger actions in the world. It will also use events
-# to count the number of orbits the Earth makes around the sun. This
-# tutorial uses the same base code from the solar system tutorial.
+# The main goal of this smaller project is for me to dig deeper into software
+# developement with python. Trying to build something like "Settlers of Catan,
+# but in space" it forces me to get familiar with object oriented paradigms 
+# and to use Github. Most of it is based on the "Solar System Tutorial"
+# from the Panda 1.10 standard package
 
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.DirectObject import DirectObject
@@ -25,12 +25,6 @@ base.win.requestProperties(wp)
 
 
 class World(DirectObject):
-    # Macro-like function used to reduce the amount to code needed to create the
-    # on screen instructions
-
-    def genLabelText(self, text, i):
-        return OnscreenText(text=text, pos=(0.06, -.06 * (i + 0.5)), fg=(1, 1, 1, 1),
-                            parent=base.a2dTopLeft,align=TextNode.ALeft, scale=.05)
 
     def __init__(self):
 
@@ -41,7 +35,7 @@ class World(DirectObject):
         camera.setHpr(0, -45, 0)
         
 
-        # The global variables we used to control the speed and size of objects
+        # The global variables we use to control the speed and size of objects
         self.yearscale = 900
         self.dayscale = self.yearscale / 365.0 * 5
         self.yearCounter = 0
@@ -56,6 +50,7 @@ class World(DirectObject):
         self.PlanetInfoModeOn = False
         self.planetDB = {}
 
+        # Everything that's needed to detect selecting objects with mouse
         self.pickerNode = CollisionNode('mouseRay')
         self.pickerNP = camera.attachNewNode(self.pickerNode)
         self.pickerNode.setFromCollideMask(GeomNode.getDefaultCollideMask())
@@ -65,12 +60,14 @@ class World(DirectObject):
         base.cTrav = CollisionTraverser('myTraverser')
         base.cTrav.addCollider(self.pickerNP, self.collQueue)
 
+        # Set up the start screen
         self.setUpGui()
-        self.loadPlanets()  # Load, texture, and position the planets
-        self.rotatePlanets()  # Set up the motion to start them moving
+        self.loadPlanets()
+        self.rotatePlanets()  
 
         taskMgr.add(self.setCam, "setcamTask")
 
+        # Open up all listeners for varous mouse and keyboard inputs
         self.accept("escape", sys.exit)
         self.accept("arrow_up", self.pressKey, ["up"])
         self.accept("arrow_up-up", self.releaseKey, ["up"])
@@ -91,12 +88,19 @@ class World(DirectObject):
         self.accept("mouse1", self.handleMouseClick)
         self.accept("wheel_up", self.handleZoom, ['in'])
         self.accept("wheel_down", self.handleZoom, ['out'])
+    
+    # end of init function
 
 
+    # Smaller single-line functions
     def pressKey(self, key): self.keyDict[key] = True
     def releaseKey(self, key): self.keyDict[key] = False
     def incYear(self): self.yearCounter += 1
     def incDay(self): self.dayCounter += 1
+
+    #****************************************
+    #            Main Functions             *
+    #****************************************
 
     def setCam(self, task):
         dt = globalClock.getDt()
