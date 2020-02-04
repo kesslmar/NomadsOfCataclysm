@@ -186,7 +186,7 @@ class World(DirectObject):
         if mode==True:
             self.PlanetInfoPanel.hide()
             self.emptyPlanetInfo()
-            self.fillBuildPanel('RESC')
+            self.fillBuildPanel()
             self.PlanetBuildPanel.show()
         else:
             self.PlanetBuildPanel.hide()
@@ -253,12 +253,13 @@ class World(DirectObject):
                 self.PlanetBuildSlot3['text'] = section[0] + '3'
                 self.PlanetBuildSlot4['text'] = section[0] + '4'
                 self.PlanetBuildSlot5['text'] = section[0] + '5'
+                self.updateBuildingLables()
 
             swipeInInterval = self.PlanetBuildSlotContainer.posInterval(0.1, pos, Point3(pos[0],pos[1],pos[2]-2))
             
             mySeq = Sequence(swipeOutInterval, Func(rename), swipeInInterval)      
             mySeq.start()
-            self.fillBuildPanel(section)
+            self.fillBuildPanel()
 
     def switchBuildSlot(self, newSlot):
         self.clearSelectedBuildSlot()
@@ -282,8 +283,9 @@ class World(DirectObject):
         else:
             self.PlanetBuildConstructButton.hide()
 
-    def fillBuildPanel(self, section):
+    def fillBuildPanel(self):
         i = 0
+        section = self.ActiveBuildSection
         for k,v in self.buildingsDB[section].items():
             newBlueprint = DirectButton(
                 frameColor=(0.15, 0.15, 0.15, 0.9),
@@ -311,8 +313,33 @@ class World(DirectObject):
         section = self.ActiveBuildSection
         slot = self.ActiveBuildSlot['text']
         building = self.ActiveBlueprint['text']
-        self.slotsDB[section][slot] = building
-        self.printSlotsDB()
+        price = self.buildingsDB[section][building]['Price']
+        if self.money >= price:
+            self.slotsDB[section][slot] = building
+            self.money -= price
+            self.printSlotsDB()
+            self.updateBuildingLables()
+
+    def updateBuildingLables(self):
+        section = self.ActiveBuildSection
+        data = self.slotsDB[section]
+        fl = section[0]
+
+        if data[fl+'1'] != None: self.PlanetBuildSlot1Lable['text'] = data[fl+'1']
+        else: self.PlanetBuildSlot1Lable['text'] = ''   
+
+        if data[fl+'2'] != None: self.PlanetBuildSlot2Lable['text'] = data[fl+'2']
+        else: self.PlanetBuildSlot2Lable['text'] = '' 
+
+        if data[fl+'3'] != None: self.PlanetBuildSlot3Lable['text'] = data[fl+'3']
+        else: self.PlanetBuildSlot3Lable['text'] = '' 
+
+        if data[fl+'4'] != None: self.PlanetBuildSlot4Lable['text'] = data[fl+'4']
+        else: self.PlanetBuildSlot4Lable['text'] = '' 
+
+        if data[fl+'5'] != None: self.PlanetBuildSlot5Lable['text'] = data[fl+'5']
+        else: self.PlanetBuildSlot5Lable['text'] = '' 
+
 
     def clearBuildPanel(self):
         for element in self.PlanetBuildPanelContent:
@@ -409,37 +436,43 @@ class World(DirectObject):
         self.PlanetBuildSlot1 = DirectButton(text='R1', 
             pos=(1.7,0,0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
-            command=self.switchBuildSlot)
+            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer)
         self.PlanetBuildSlot1['extraArgs'] = [self.PlanetBuildSlot1]
-        self.PlanetBuildSlot1.reparentTo(self.PlanetBuildSlotContainer)
+        self.PlanetBuildSlot1Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
+            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot1)
 
         self.PlanetBuildSlot2 = DirectButton(text='R2', 
             pos=(1.7,0,-0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
-            command=self.switchBuildSlot)
+            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer)
         self.PlanetBuildSlot2['extraArgs'] = [self.PlanetBuildSlot2]
-        self.PlanetBuildSlot2.reparentTo(self.PlanetBuildSlotContainer)
+        self.PlanetBuildSlot2Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
+            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot2)
 
         self.PlanetBuildSlot3 = DirectButton(text='R3', 
             pos=(1.4,0,0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.switchBuildSlot, state='DISABLED')
+            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='DISABLED')
         self.PlanetBuildSlot3['extraArgs'] = [self.PlanetBuildSlot3]
-        self.PlanetBuildSlot3.reparentTo(self.PlanetBuildSlotContainer)
+        self.PlanetBuildSlot3Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
+            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot3)
 
         self.PlanetBuildSlot4 = DirectButton(text='R4', 
             pos=(1.4,0,0), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.switchBuildSlot, state='DISABLED')
+            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='DISABLED')
         self.PlanetBuildSlot4['extraArgs'] = [self.PlanetBuildSlot4]
-        self.PlanetBuildSlot4.reparentTo(self.PlanetBuildSlotContainer)
+        self.PlanetBuildSlot4Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
+            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot4)
 
         self.PlanetBuildSlot5 = DirectButton(text='R5', 
             pos=(1.4,0,-0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.switchBuildSlot, state='DISABLED')
+            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='DISABLED')
         self.PlanetBuildSlot5['extraArgs'] = [self.PlanetBuildSlot5]
-        self.PlanetBuildSlot5.reparentTo(self.PlanetBuildSlotContainer)
+        self.PlanetBuildSlot5Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
+            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot5)
+
 
         self.PlanetBuildWire1 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(0,1,0,1),
             pos=(1.7,-0.5,-0.035))
@@ -623,10 +656,10 @@ class World(DirectObject):
     def prepareSlotsDB(self):
         self.slotsDB = {
             'RESC':{'R1':None, 'R2':None, 'R3':None, 'R4':None, 'R5':None},
-            'PROD':{'P1':None, 'P2':None, 'P3':None, 'R4':None, 'R5':None},
-            'ENRG':{'E1':None, 'E2':None, 'E3':None, 'R4':None, 'R5':None},
-            'DEV': {'D1':None, 'D2':None, 'D3':None, 'R4':None, 'R5':None},
-            'HAB': {'H1':None, 'H2':None, 'H3':None, 'R4':None, 'R5':None}
+            'PROD':{'P1':None, 'P2':None, 'P3':None, 'P4':None, 'P5':None},
+            'ENRG':{'E1':None, 'E2':None, 'E3':None, 'E4':None, 'E5':None},
+            'DEV': {'D1':None, 'D2':None, 'D3':None, 'D4':None, 'D5':None},
+            'HAB': {'H1':None, 'H2':None, 'H3':None, 'H4':None, 'H5':None}
         }
 
 
