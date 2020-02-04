@@ -255,15 +255,23 @@ class World(DirectObject):
         self.clearSelectedBuildSlot()
         self.ActiveBuildSlot = newSlot
         newSlot['relief'] = 'sunken'
+        self.checkForConstructButton()
 
-    def switchBuildBlueprint(self, blueprint):
+    def switchBuildBlueprint(self, blueprint, building):
         if self.ActiveBlueprint != None:
             self.ActiveBlueprint['frameColor']=(0.15,0.15,0.15,0.9)
         else:
             self.PlanetBuildDescriptionField.show()
         self.ActiveBlueprint = blueprint
         blueprint['frameColor']=(0.3,0.3,0.3,0.9)
-        return None
+        self.PlanetBuildDescriptionText['text'] = building['desc']
+        self.checkForConstructButton()
+
+    def checkForConstructButton(self):
+        if self.ActiveBlueprint != None and self.ActiveBuildSlot != None:
+            self.PlanetBuildConstructButton.show()
+        else:
+            self.PlanetBuildConstructButton.hide()
 
     def fillBuildPanel(self, section):
         i = 0
@@ -273,16 +281,16 @@ class World(DirectObject):
                 frameSize=(-0.4, 0.4, -0.125, 0.125), relief='flat',
                 pos=(0, 0, 0.53-i*0.25), parent=self.PlanetBuildPanel,
                 command=self.switchBuildBlueprint)
-            newElement['extraArgs']=[newElement]
+            newElement['extraArgs']=[newElement,v]
             self.PlanetBuildPanelContent.append(newElement)
 
             newTitle = DirectLabel(text=k, 
             pos=(-0.1, 0, 0.05), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
             parent = newElement, text_align=TextNode.ALeft, text_scale = 0.06)
 
-            newRequirements = DirectLabel(text=str(v), 
-            pos=(-0.1, 0, -0.08), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
-            parent = newElement, text_align=TextNode.ALeft, text_scale = 0.05)
+            newAttributes = DirectLabel(text='Price: ' + str(v['Price']) + '\nYield: ' + str(v['Yield']), 
+            pos=(-0.1, 0, -0.02), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
+            parent = newElement, text_align=TextNode.ALeft, text_scale = 0.045)
 
             newRuler = DirectFrame(frameColor=(0,0,0,0.9), frameSize=(-0.4, 0.4, -0.003, 0.003),
             pos=(0,0,-0.12), parent=newElement)
@@ -295,6 +303,7 @@ class World(DirectObject):
         self.PlanetBuildPanelContent = []
         self.ActiveBlueprint = None
         self.PlanetBuildDescriptionField.hide()
+        self.PlanetBuildConstructButton.hide()
 
     def clearSelectedBuildSlot(self):
         if self.ActiveBuildSlot != None:
@@ -352,11 +361,20 @@ class World(DirectObject):
             pos=(0.825, 0, 0.485), parent=self.PlanetBuildPanel)
         self.PlanetBuildDescriptionField.hide()
 
+        self.PlanetBuildDescriptionText = DirectLabel(text='', 
+            pos=(-0.38, 0, 0.22), text_fg=(1,1,1,1), frameColor=(0,0,0,0), text_scale = 0.05,
+            frameSize=(0,0.8,0,0.5), parent = self.PlanetBuildDescriptionField, text_align=TextNode.ALeft)
+
+        self.PlanetBuildConstructButton = DirectButton(text='Construct ->', 
+            pos=(0.7,0,0), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+            command=self.togglePlanetBuildMode, extraArgs=[False], parent=self.PlanetBuildPanel)
+        self.PlanetBuildConstructButton.hide()
+
         self.PlanetBuildCloseButton = DirectButton(text='Back', 
             pos=(-0.26,0,0.7), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.togglePlanetBuildMode, extraArgs=[False])
-        self.PlanetBuildCloseButton.reparentTo(self.PlanetBuildPanel)
+            command=self.togglePlanetBuildMode, extraArgs=[False], parent=self.PlanetBuildPanel)
 
         self.PlanetBuildSectionDropdown = DirectOptionMenu(text="options", 
             pos=(-0.1,0,0.68),pad=(1.7, 1), borderWidth=(0.06,0.06),
@@ -471,7 +489,7 @@ class World(DirectObject):
 
         self.planetDB.update({'mars':{
             'name':'Mars', 'scale':0.512, 'dist':1.52, 'type':'Planet',
-            'athm':True, 'wind':1, 'resc':{'Noblestone':100, 'Iron':50},
+            'athm':False, 'wind':1, 'resc':{'Noblestone':100, 'Iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
         self.mars = loader.loadModel("models/planet_sphere")
@@ -484,7 +502,7 @@ class World(DirectObject):
 
         self.planetDB.update({'earth':{
             'name':'Earth', 'scale':1, 'dist':1, 'type':'Planet',
-            'athm':False, 'wind':1, 'resc':{'Iron':50},
+            'athm':True, 'wind':1, 'resc':{'Iron':50},
             'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
             'devBlds':{}, 'habBlds':{} }})
         self.earth = loader.loadModel("models/planet_sphere")
@@ -554,34 +572,34 @@ class World(DirectObject):
     def fillBuildingsDB(self):
         self.buildingsDB = {
             'RESC':{
-                'Cole Drill': 300,
-                'Iron Mine': 450,
-                'Uranium Site': 600,
-                'Organic Farm': 250,
+                'Cole Drill': {'Price':300, 'Time':60, 'Yield':'Cole', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Iron Mine': {'Price':450, 'ttb':100, 'Yield':'Iron', 'desc':'Sophisticated mine to faciliate \niron, which is used for further \nProduction.'},
+                'Uranium Site': {'Price':600, 'Time':300, 'Yield':'Uranium', 'desc':'High tech facility to gather raw \nuranium. This has then to be \nenriched for further use.'},
+                'Organic Farm': {'Price':250, 'Time':60, 'Yield':'Cole', 'desc':'Basic vegetable farm to satisfy \nnutrition needs.'}
             },
             'PROD':{
-                'Weapon Forge': 500,
-                'Ship Yard': 550,
-                'Uranium Enricher': 750
+                'Weapon Forge': {'Price':500, 'Time':120, 'Yield':'Weapons', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Ship Yard': {'Price':550, 'Time':130, 'Yield':'Ships', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Uranium Enricher': {'Price':750, 'Time':400, 'Yield':'Uranium Rods', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'}
             },
             'ENRG':{
-                'Wind Turbine': 150,
-                'Cole Generator': 300,
-                'M.W. Transmitter': 500,
-                'Nuclear Reactor': 800,
-                'Dyson Sphere': 3200
+                'Wind Turbine': {'Price':150, 'Time':30, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Cole Generator': {'Price':300, 'Time':50, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'M.W. Transmitter': {'Price':650, 'Time':250, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Nuclear Reactor': {'Price':850, 'Time':350, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Dyson Sphere': {'Price':3200, 'Time':600, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'}
             },
             'DEV':{
-                'Trading Center': 575,
-                'Milkyway Uni.': 350,
-                'Science Institut': 500,
-                'Space Port': 150
+                'Trading Center': {'Price':575, 'Time':300, 'Yield':'Trading ability', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Milkyway Uni.': {'Price':350, 'Time':200, 'Yield':'Society improv.', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Science Institut': {'Price':500, 'Time':280, 'Yield':'New researches', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Space Port': {'Price':190, 'Time':150, 'Yield':'Space abilities', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'}
             },
             'HAB':{
-                'Pod Settlement': 150,
-                'Skyscraper City': 400,
-                'Sol Resort': 625,
-                'Autom. Hospital': 300
+                'Pod Settlement': {'Price':120, 'Time':30, 'Yield':'10 Nomads', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Skyscraper City': {'Price':400, 'Time':230, 'Yield':'60 Nomads', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Sol Resort': {'Price':625, 'Time':240, 'Yield':'Tourism ability', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'},
+                'Autom. Hospital': {'Price':350, 'Time':200, 'Yield':'TBD', 'desc':'Simple mining drill to extract cole \nrescources of a planet.'}
             }
         }
 
