@@ -45,18 +45,17 @@ class World(DirectObject):
         self.camSpeed = 10
         self.zoomSpeed = 5
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
+
         self.followObject = None
         self.followObjectScale = 1
-
-        self.planetDB = {} #All attributes that a planet has
-        self.buildingsDB = {} #Contains all buildable structures
-        self.slotsDB = {} #Contains all structures that are allready built
-
         self.PlanetInfoModeOn = False
         self.PlanetBuildModeOn = False
         self.ActiveBuildSection  = 'RESC' #Is either RESC, PROD, ENRG, DEV or HAB
         self.ActiveBuildSlot = None
         self.ActiveBlueprint = None
+
+        self.planetDB = {} #All attributes and constructed buildings that a planet has
+        self.buildingsDB = {} #Contains all buildable structures
 
         # Everything that's needed to detect selecting objects with mouse
         self.pickerNode = CollisionNode('mouseRay')
@@ -73,7 +72,7 @@ class World(DirectObject):
         self.loadPlanets()
         self.rotatePlanets()
         self.fillBuildingsDB()
-        self.prepareSlotsDB()
+        self.prepareSlotsInPlanetDB()
 
         taskMgr.add(self.setCam, "setcamTask")
         taskMgr.add(self.redrawHeadGUI, "redrawHeadGUITask")
@@ -168,7 +167,7 @@ class World(DirectObject):
                                                           pos[1]-self.followObjectScale * 4, 
                                                           self.followObjectScale * 4), camPos)
             zoomInterval.start()
-            self.emptyPlanetInfo()
+            self.clearPlanetInfo()
             self.fillPlanetInfo()
             self.PlanetInfoPanel.show()
         else:
@@ -180,20 +179,22 @@ class World(DirectObject):
             zoomInterval = camera.posInterval(0.2, Point3(0, -30, 30), camPos)
             zoomInterval.start()
             self.PlanetInfoPanel.hide()
-            self.emptyPlanetInfo()
+            self.clearPlanetInfo()
 
     def togglePlanetBuildMode(self, mode=False):
         if mode==True:
             self.PlanetInfoPanel.hide()
-            self.emptyPlanetInfo()
+            self.clearPlanetInfo()
             self.fillBuildPanel()
             self.PlanetBuildPanel.show()
+            self.updateBuildingLables()
         else:
             self.PlanetBuildPanel.hide()
             self.fillPlanetInfo()
             self.PlanetInfoPanel.show()
             self.clearSelectedBuildSlot()
             self.clearBuildPanel()
+            self.updateBuildingLables()
 
         return None
 
@@ -234,7 +235,7 @@ class World(DirectObject):
                 scale=0.13, text_scale=0.5)
             self.PlanetInfoPanelContent.append(PlanetInfoRescourceTable)
 
-    def emptyPlanetInfo(self):
+    def clearPlanetInfo(self):
         for element in self.PlanetInfoPanelContent:
             element.destroy()
         self.PlanetInfoPanelContent = []
@@ -279,9 +280,11 @@ class World(DirectObject):
 
     def checkForConstructButton(self):
         if self.ActiveBlueprint != None and self.ActiveBuildSlot != None:
-            self.PlanetBuildConstructButton.show()
+            self.PlanetBuildConstructButton['state']='normal'
+            self.PlanetBuildConstructButton['text_fg']=(1,1,1,1)
         else:
-            self.PlanetBuildConstructButton.hide()
+            self.PlanetBuildConstructButton['state']='disabled'
+            self.PlanetBuildConstructButton['text_fg']=(0.5,0.5,0.5,1)
 
     def fillBuildPanel(self):
         i = 0
@@ -310,19 +313,21 @@ class World(DirectObject):
             i+=1
     
     def constructBuilding(self):
+        planet = self.followObject.getNetTag('clickable')
         section = self.ActiveBuildSection
         slot = self.ActiveBuildSlot['text']
         building = self.ActiveBlueprint['text']
         price = self.buildingsDB[section][building]['Price']
+
         if self.money >= price:
-            self.slotsDB[section][slot] = building
+            self.planetDB[planet]['slots'][section][slot] = building
             self.money -= price
-            self.printSlotsDB()
             self.updateBuildingLables()
 
     def updateBuildingLables(self):
+        planet = self.followObject.getNetTag('clickable')
         section = self.ActiveBuildSection
-        data = self.slotsDB[section]
+        data = self.planetDB[planet]['slots'][section]
         fl = section[0]
 
         if data[fl+'1'] != None: self.PlanetBuildSlot1Lable['text'] = data[fl+'1']
@@ -340,14 +345,12 @@ class World(DirectObject):
         if data[fl+'5'] != None: self.PlanetBuildSlot5Lable['text'] = data[fl+'5']
         else: self.PlanetBuildSlot5Lable['text'] = '' 
 
-
     def clearBuildPanel(self):
         for element in self.PlanetBuildPanelContent:
             element.destroy()
         self.PlanetBuildPanelContent = []
         self.ActiveBlueprint = None
         self.PlanetBuildDescriptionField.hide()
-        self.PlanetBuildConstructButton.hide()
 
     def clearSelectedBuildSlot(self):
         if self.ActiveBuildSlot != None:
@@ -410,10 +413,9 @@ class World(DirectObject):
             frameSize=(0,0.8,0,0.5), parent = self.PlanetBuildDescriptionField, text_align=TextNode.ALeft)
 
         self.PlanetBuildConstructButton = DirectButton(text='Construct ->', 
-            pos=(0.7,0,0), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
+            pos=(-0.122,0,-0.37), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.constructBuilding, parent=self.PlanetBuildPanel)
-        self.PlanetBuildConstructButton.hide()
+            command=self.constructBuilding, parent=self.PlanetBuildDescriptionField, state='disabled')
 
         self.PlanetBuildCloseButton = DirectButton(text='Back', 
             pos=(-0.26,0,0.7), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
@@ -430,45 +432,45 @@ class World(DirectObject):
 
         # All static gui elements for the planet build slots
         #---------------------------------------------------
-        self.PlanetBuildSlotContainer = DirectFrame(pos=(0,0,0), frameColor=(0,0,0,0))
+        self.PlanetBuildSlotContainer = DirectFrame(pos=(0.04,0,0), frameColor=(0.5,0.5,0.5,1))
         self.PlanetBuildSlotContainer.reparentTo(self.PlanetBuildPanel)
 
         self.PlanetBuildSlot1 = DirectButton(text='R1', 
-            pos=(1.7,0,0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
+            pos=(1.7,0,0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.02,0.02),
+            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.9), text_fg=(1,1,1,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer)
         self.PlanetBuildSlot1['extraArgs'] = [self.PlanetBuildSlot1]
         self.PlanetBuildSlot1Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot1)
 
         self.PlanetBuildSlot2 = DirectButton(text='R2', 
-            pos=(1.7,0,-0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1), text_roll=45,
+            pos=(1.7,0,-0.2), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.02,0.02),
+            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.9), text_fg=(1,1,1,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer)
         self.PlanetBuildSlot2['extraArgs'] = [self.PlanetBuildSlot2]
         self.PlanetBuildSlot2Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot2)
 
         self.PlanetBuildSlot3 = DirectButton(text='R3', 
-            pos=(1.4,0,0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='DISABLED')
+            pos=(1.4,0,0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.02,0.02),
+            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
+            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
         self.PlanetBuildSlot3['extraArgs'] = [self.PlanetBuildSlot3]
         self.PlanetBuildSlot3Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot3)
 
         self.PlanetBuildSlot4 = DirectButton(text='R4', 
-            pos=(1.4,0,0), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='DISABLED')
+            pos=(1.4,0,0), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.02,0.02),
+            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
+            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
         self.PlanetBuildSlot4['extraArgs'] = [self.PlanetBuildSlot4]
         self.PlanetBuildSlot4Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot4)
 
         self.PlanetBuildSlot5 = DirectButton(text='R5', 
-            pos=(1.4,0,-0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='DISABLED')
+            pos=(1.4,0,-0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.02,0.02),
+            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
+            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
         self.PlanetBuildSlot5['extraArgs'] = [self.PlanetBuildSlot5]
         self.PlanetBuildSlot5Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot5)
@@ -513,9 +515,7 @@ class World(DirectObject):
 
         self.planetDB.update({'mercury':{
             'name':'Mercury', 'scale':0.385, 'dist':0.38, 'type':'Planet',
-            'athm':False, 'wind':1, 'resc':{'Coal':100, 'Iron':50},
-            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
-            'devBlds':{}, 'habBlds':{} }})
+            'athm':False, 'wind':1, 'resc':{'Coal':100, 'Iron':50} }})
         self.mercury = loader.loadModel("models/planet_sphere")
         self.mercury_tex = loader.loadTexture("models/mercury_1k_tex.jpg")
         self.mercury.setTexture(self.mercury_tex, 1)
@@ -526,9 +526,7 @@ class World(DirectObject):
 
         self.planetDB.update({'venus':{
             'name':'Venus', 'scale':0.923, 'dist':0.72, 'type':'Planet',
-            'athm':False, 'wind':2, 'resc':{'Coal':100, 'Uranium':250},
-            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
-            'devBlds':{}, 'habBlds':{} }})
+            'athm':False, 'wind':2, 'resc':{'Coal':100, 'Uranium':250} }})
         self.venus = loader.loadModel("models/planet_sphere")
         self.venus_tex = loader.loadTexture("models/venus_1k_tex.jpg")
         self.venus.setTexture(self.venus_tex, 1)
@@ -539,9 +537,7 @@ class World(DirectObject):
 
         self.planetDB.update({'mars':{
             'name':'Mars', 'scale':0.512, 'dist':1.52, 'type':'Planet',
-            'athm':False, 'wind':1, 'resc':{'Noblestone':100, 'Iron':50},
-            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
-            'devBlds':{}, 'habBlds':{} }})
+            'athm':False, 'wind':1, 'resc':{'Noblestone':100, 'Iron':50} }})
         self.mars = loader.loadModel("models/planet_sphere")
         self.mars_tex = loader.loadTexture("models/mars_1k_tex.jpg")
         self.mars.setTexture(self.mars_tex, 1)
@@ -552,9 +548,7 @@ class World(DirectObject):
 
         self.planetDB.update({'earth':{
             'name':'Earth', 'scale':1, 'dist':1, 'type':'Planet',
-            'athm':True, 'wind':1, 'resc':{'Iron':50},
-            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
-            'devBlds':{}, 'habBlds':{} }})
+            'athm':True, 'wind':1, 'resc':{'Iron':50} }})
         self.earth = loader.loadModel("models/planet_sphere")
         self.earth_tex = loader.loadTexture("models/earth_1k_tex.jpg")
         self.earth.setTexture(self.earth_tex, 1)
@@ -567,9 +561,7 @@ class World(DirectObject):
 
         self.planetDB.update({'moon':{
             'name':'Moon', 'scale':0.1, 'dist':0.1, 'type':'Moon',
-            'athm':False, 'wind':0, 'resc':{'Coal':300, 'Cheese':20},
-            'rescBlds':{}, 'prodBlds':{}, 'enrgBlds':{},
-            'devBlds':{}, 'habBlds':{} }})
+            'athm':False, 'wind':0, 'resc':{'Coal':300, 'Cheese':20} }})
         self.moon = loader.loadModel("models/planet_sphere")
         self.moon_tex = loader.loadTexture("models/moon_1k_tex.jpg")
         self.moon.setTexture(self.moon_tex, 1)
@@ -577,6 +569,16 @@ class World(DirectObject):
         self.moon.setScale(0.1 * self.sizescale)
         self.moon.setPos(0.1 * self.orbitscale, 0, 0)
         self.moon.setTag('clickable', 'moon')
+
+    def prepareSlotsInPlanetDB(self):
+        for planet, data in self.planetDB.items():
+            self.planetDB[planet].update({'slots':{
+                'RESC':{'R1':None, 'R2':None, 'R3':None, 'R4':None, 'R5':None},
+                'PROD':{'P1':None, 'P2':None, 'P3':None, 'P4':None, 'P5':None},
+                'ENRG':{'E1':None, 'E2':None, 'E3':None, 'E4':None, 'E5':None},
+                'DEV': {'D1':None, 'D2':None, 'D3':None, 'D4':None, 'D5':None},
+                'HAB': {'H1':None, 'H2':None, 'H3':None, 'H4':None, 'H5':None}
+            }})
 
     def rotatePlanets(self):
         self.day_period_sun = self.sun.hprInterval(20, (360, 0, 0))
@@ -653,23 +655,12 @@ class World(DirectObject):
             }
         }
 
-    def prepareSlotsDB(self):
-        self.slotsDB = {
-            'RESC':{'R1':None, 'R2':None, 'R3':None, 'R4':None, 'R5':None},
-            'PROD':{'P1':None, 'P2':None, 'P3':None, 'P4':None, 'P5':None},
-            'ENRG':{'E1':None, 'E2':None, 'E3':None, 'E4':None, 'E5':None},
-            'DEV': {'D1':None, 'D2':None, 'D3':None, 'D4':None, 'D5':None},
-            'HAB': {'H1':None, 'H2':None, 'H3':None, 'H4':None, 'H5':None}
-        }
-
 
     #****************************************
     #             Debug Functions           *
     #****************************************
 
-    def printSlotsDB(self):
-        for s in self.slotsDB.items():
-            print(s)
+
 # end class world
 
 w = World()
