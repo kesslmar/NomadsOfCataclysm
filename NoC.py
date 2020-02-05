@@ -160,7 +160,7 @@ class World(DirectObject):
             self.PlanetInfoModeOn = True
             taskMgr.add(self.followCam, 'followcamTask')
             self.followObject = obj
-            self.followObjectScale = self.planetDB[obj.getNetTag('clickable')]['scale']
+            self.followObjectScale = self.planetDB[obj.getNetTag('name')]['scale']
             pos = self.followObject.getPos(base.render)
             camPos = camera.getPos()
             zoomInterval = camera.posInterval(0.2, Point3(pos[0]-self.followObjectScale * 1.5,
@@ -201,7 +201,7 @@ class World(DirectObject):
     def fillPlanetInfo(self):
         # Fills the content of the planet info gui every time a planet gets selected
 
-        objID = self.followObject.getNetTag('clickable')
+        objID = self.followObject.getNetTag('name')
         
         PlanetInfoTitle = DirectLabel(text=self.planetDB[objID]['name'], 
             pos=(-0.85, 0, 0.5), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
@@ -313,7 +313,7 @@ class World(DirectObject):
             i+=1
     
     def constructBuilding(self):
-        planet = self.followObject.getNetTag('clickable')
+        planet = self.followObject.getNetTag('name')
         section = self.ActiveBuildSection
         slot = self.ActiveBuildSlot['text']
         building = self.ActiveBlueprint['text']
@@ -325,7 +325,7 @@ class World(DirectObject):
             self.updateBuildingLables()
 
     def updateBuildingLables(self):
-        planet = self.followObject.getNetTag('clickable')
+        planet = self.followObject.getNetTag('name')
         section = self.ActiveBuildSection
         data = self.planetDB[planet]['slots'][section]
         fl = section[0]
@@ -511,7 +511,8 @@ class World(DirectObject):
         self.sun.setTexture(self.sun_tex, 1)
         self.sun.reparentTo(render)
         self.sun.setScale(self.planetDB['sun']['scale'] * self.sizescale)
-        self.sun.setTag('clickable', 'sun')
+        self.sun.setTag('clickable', 'yes')
+        self.sun.setTag('name', 'sun')
 
         self.planetDB.update({'mercury':{
             'name':'Mercury', 'scale':0.385, 'dist':0.38, 'type':'Planet',
@@ -522,8 +523,9 @@ class World(DirectObject):
         self.mercury.reparentTo(self.orbit_root_mercury)
         self.mercury.setPos(self.planetDB['mercury']['dist'] * self.orbitscale, 0, 0)
         self.mercury.setScale(self.planetDB['mercury']['scale'] * self.sizescale)
-        self.mercury.setTag('clickable', 'mercury')
-
+        self.mercury.setTag('clickable', 'yes')
+        self.mercury.setTag('name', 'mercury')
+        
         self.planetDB.update({'venus':{
             'name':'Venus', 'scale':0.923, 'dist':0.72, 'type':'Planet',
             'athm':False, 'wind':2, 'resc':{'Coal':100, 'Uranium':250} }})
@@ -533,7 +535,8 @@ class World(DirectObject):
         self.venus.reparentTo(self.orbit_root_venus)
         self.venus.setPos(self.planetDB['venus']['dist'] * self.orbitscale, 0, 0)
         self.venus.setScale(self.planetDB['venus']['scale'] * self.sizescale)
-        self.venus.setTag('clickable', 'venus')
+        self.venus.setTag('clickable', 'yes')
+        self.venus.setTag('name', 'venus')
 
         self.planetDB.update({'mars':{
             'name':'Mars', 'scale':0.512, 'dist':1.52, 'type':'Planet',
@@ -544,7 +547,8 @@ class World(DirectObject):
         self.mars.reparentTo(self.orbit_root_mars)
         self.mars.setPos(self.planetDB['mars']['dist'] * self.orbitscale, 0, 0)
         self.mars.setScale(self.planetDB['mars']['scale'] * self.sizescale)
-        self.mars.setTag('clickable', 'mars')
+        self.mars.setTag('clickable', 'yes')
+        self.mars.setTag('name', 'mars')
 
         self.planetDB.update({'earth':{
             'name':'Earth', 'scale':1, 'dist':1, 'type':'Planet',
@@ -555,7 +559,8 @@ class World(DirectObject):
         self.earth.reparentTo(self.orbit_root_earth)
         self.earth.setScale(self.planetDB['earth']['scale'] * self.sizescale)
         self.earth.setPos(self.planetDB['earth']['dist'] * self.orbitscale, 0, 0)
-        self.earth.setTag('clickable', 'earth')
+        self.earth.setTag('clickable', 'yes')
+        self.earth.setTag('name', 'earth')
 
         self.orbit_root_moon.setPos(self.orbitscale, 0, 0)
 
@@ -568,7 +573,8 @@ class World(DirectObject):
         self.moon.reparentTo(self.orbit_root_moon)
         self.moon.setScale(0.1 * self.sizescale)
         self.moon.setPos(0.1 * self.orbitscale, 0, 0)
-        self.moon.setTag('clickable', 'moon')
+        self.moon.setTag('clickable', 'yes')
+        self.moon.setTag('name', 'moon')
 
     def prepareSlotsInPlanetDB(self):
         for planet, data in self.planetDB.items():
