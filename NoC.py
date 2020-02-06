@@ -15,6 +15,7 @@ from panda3d.core import *
 from panda3d.core import WindowProperties
 from direct.interval.IntervalGlobal import *
 from direct.gui.DirectGui import *
+from direct.task import Task
 
 import sys
 
@@ -46,7 +47,8 @@ class World(DirectObject):
         self.zoomSpeed = 5
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
 
-        self.followObject = None
+        self.selectedObject = None
+        self.selectedObjectName = None
         self.followObjectScale = 1
         self.PlanetInfoModeOn = False
         self.PlanetBuildModeOn = False
@@ -74,8 +76,10 @@ class World(DirectObject):
         self.fillBuildingsDB()
         self.prepareSlotsInPlanetDB()
 
+        # Add all constantly running checks to the taskmanager
         taskMgr.add(self.setCam, "setcamTask")
         taskMgr.add(self.redrawHeadGUI, "redrawHeadGUITask")
+        # Other tasks are created in: constructBuilding()
 
         # Open up all listeners for varous mouse and keyboard inputs
         self.accept("escape", sys.exit)
@@ -134,7 +138,7 @@ class World(DirectObject):
                 zoomInterval.start()
 
     def followCam(self, task):
-        pos = self.followObject.getPos(base.render)
+        pos = self.selectedObject.getPos(base.render)
         camera.setPos(pos[0]-self.followObjectScale * 1.5, 
                       pos[1]-self.followObjectScale * 4, 
                       self.followObjectScale * 4)
@@ -159,9 +163,10 @@ class World(DirectObject):
         if mode:
             self.PlanetInfoModeOn = True
             taskMgr.add(self.followCam, 'followcamTask')
-            self.followObject = obj
+            self.selectedObject = obj
+            self.selectedObjectName = obj.getNetTag('name')
             self.followObjectScale = self.planetDB[obj.getNetTag('name')]['scale']
-            pos = self.followObject.getPos(base.render)
+            pos = self.selectedObject.getPos(base.render)
             camPos = camera.getPos()
             zoomInterval = camera.posInterval(0.2, Point3(pos[0]-self.followObjectScale * 1.5,
                                                           pos[1]-self.followObjectScale * 4, 
@@ -173,7 +178,7 @@ class World(DirectObject):
         else:
             self.PlanetInfoModeOn = False
             taskMgr.remove('followcamTask')
-            self.followObject = None
+            self.selectedObject = None
             self.followObjectScale = 1
             camPos = camera.getPos()
             zoomInterval = camera.posInterval(0.2, Point3(0, -30, 30), camPos)
@@ -201,14 +206,10 @@ class World(DirectObject):
     def fillPlanetInfo(self):
         # Fills the content of the planet info gui every time a planet gets selected
 
-        objID = self.followObject.getNetTag('name')
-        
-        PlanetInfoTitle = DirectLabel(text=self.planetDB[objID]['name'], 
-            pos=(-0.85, 0, 0.5), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
-            parent = self.PlanetInfoPanel, text_align=TextNode.ALeft, text_scale = 0.13
-            )
-        self.PlanetInfoPanelContent.append(PlanetInfoTitle)
-    
+        objID = self.selectedObjectName
+        self.PlanetInfoTitle['text']=self.planetDB[objID]['name']
+
+
         PlanetInfoAttributesText = (
             'Type:\t\t' + str(self.planetDB[objID]['type']) + '\n'
             'Diameter:\t\t' + str(self.planetDB[objID]['scale'] * 10**5) + '\n')
@@ -218,27 +219,28 @@ class World(DirectObject):
                 'Athmosphere:\t' + str(self.planetDB[objID]['athm']) + '\n'
                 'Windstrength:\t' + str(self.planetDB[objID]['wind']) + '\n')
 
-        PlanetInfoAttributesTable = DirectLabel(text=PlanetInfoAttributesText,
-            pos=(-0.85, 0, 0.4), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
-            parent = self.PlanetInfoPanel, text_align=TextNode.ALeft,
-            scale=0.13, text_scale=0.5)
-        self.PlanetInfoPanelContent.append(PlanetInfoAttributesTable)
+        self.PlanetInfoAttributesTable['text']=PlanetInfoAttributesText
+
 
         if self.planetDB[objID]['type'] != "Star":
             PlanetInfoRescourceText = 'Rescources:\n'
             for k,v in self.planetDB[objID]['resc'].items():
                 PlanetInfoRescourceText += k + ':\t\t' + str(v) + '\n'
 
-            PlanetInfoRescourceTable = DirectLabel(text=PlanetInfoRescourceText,
-                pos=(-0.85, 0, 0), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
-                parent = self.PlanetInfoPanel, text_align=TextNode.ALeft,
-                scale=0.13, text_scale=0.5)
-            self.PlanetInfoPanelContent.append(PlanetInfoRescourceTable)
+            self.PlanetInfoRescourceTable['text']=PlanetInfoRescourceText
+
+            if 'goods' in self.planetDB[objID]:
+                PlanetInfoGoodsText = 'Goods:\n'
+                for k,v in self.planetDB[objID]['goods'].items():
+                    PlanetInfoGoodsText += k + ':\t' + str(v) + '\n'
+
+                self.PlanetInfoGoodsTable['text']=PlanetInfoGoodsText
 
     def clearPlanetInfo(self):
-        for element in self.PlanetInfoPanelContent:
-            element.destroy()
-        self.PlanetInfoPanelContent = []
+        self.PlanetInfoTitle['text']='Unknown'
+        self.PlanetInfoAttributesTable['text']=''
+        self.PlanetInfoRescourceTable['text']='Rescources:\nNone'
+        self.PlanetInfoGoodsTable['text']='Goods:\nNone'
 
     def switchBuildSection(self, section):
         if section != self.ActiveBuildSection:
@@ -313,19 +315,23 @@ class World(DirectObject):
             i+=1
     
     def constructBuilding(self):
-        planet = self.followObject.getNetTag('name')
+        planet = self.selectedObjectName
         section = self.ActiveBuildSection
         slot = self.ActiveBuildSlot['text']
-        building = self.ActiveBlueprint['text']
-        price = self.buildingsDB[section][building]['Price']
+        blueprint = self.ActiveBlueprint['text']
+        price = self.buildingsDB[section][blueprint]['Price']
 
         if self.money >= price:
-            self.planetDB[planet]['slots'][section][slot] = building
+            self.planetDB[planet]['slots'][section][slot] = blueprint
             self.money -= price
             self.updateBuildingLables()
 
+            good = self.buildingsDB[section][blueprint]['Yield']
+            incVal = self.buildingsDB[section][blueprint]['incVal']
+            taskMgr.doMethodLater(5, self.produceGoodTask, 'produceGoodTask', extraArgs=[planet,good,incVal], appendTask=True)
+
     def updateBuildingLables(self):
-        planet = self.followObject.getNetTag('name')
+        planet = self.selectedObjectName
         section = self.ActiveBuildSection
         data = self.planetDB[planet]['slots'][section]
         fl = section[0]
@@ -357,7 +363,15 @@ class World(DirectObject):
             self.ActiveBuildSlot['relief']='raised'
             self.ActiveBuildSlot = None
 
-
+    def produceGoodTask(self, celObj, good, incVal, task):
+        if not ('goods' in self.planetDB[celObj]):
+            self.planetDB[celObj].update({'goods':{}})
+        if not (good in self.planetDB[celObj]['goods']):
+            self.planetDB[celObj]['goods'].update({good:0})
+        
+        self.planetDB[celObj]['goods'][good]+=incVal
+        
+        return task.again
 
     #****************************************
     #       Initialisation Functions        *
@@ -378,7 +392,21 @@ class World(DirectObject):
             pos=(-0.8, 0, 0))
         self.PlanetInfoPanel.hide()
 
-        self.PlanetInfoPanelContent = []
+        self.PlanetInfoTitle = DirectLabel(text='', pos=(-0.85, 0, 0.5), 
+            text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = self.PlanetInfoPanel, 
+            text_align=TextNode.ALeft, text_scale = 0.13)
+
+        self.PlanetInfoAttributesTable = DirectLabel(text='Unkown', pos=(-0.85, 0, 0.4), 
+            text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = self.PlanetInfoPanel, 
+            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
+
+        self.PlanetInfoRescourceTable = DirectLabel(text='Rescources:\nNone', pos=(-0.85, 0, 0), 
+            text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = self.PlanetInfoPanel, 
+            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
+        
+        self.PlanetInfoGoodsTable = DirectLabel(text='Goods:\nNone', pos=(-0.85, 0, -0.3), 
+            text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = self.PlanetInfoPanel, 
+            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
 
         self.PlanetInfoCloseButton = DirectButton(text='Close', 
             pos=(-0.745,0,0.7), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
@@ -387,7 +415,7 @@ class World(DirectObject):
         self.PlanetInfoCloseButton.reparentTo(self.PlanetInfoPanel)
 
         self.PlanetInfoBuildButton = DirectButton(text='Build', 
-            pos=(1.8,0,-0.61), pad=(0.06, 0.02), borderWidth=(0.01,0.01),
+            pos=(1.8,0,-0.58), pad=(0.06, 0.05), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
             command=self.togglePlanetBuildMode, extraArgs=[True])
         self.PlanetInfoBuildButton.reparentTo(self.PlanetInfoPanel)
@@ -630,22 +658,22 @@ class World(DirectObject):
     def fillBuildingsDB(self):
         self.buildingsDB = {
             'RESC':{
-                'Cole Drill': {'Price':300, 'Time':60, 'Yield':'Cole', 'desc':'Simple mining drill to extract cole rescources of a planet.'},
-                'Iron Mine': {'Price':450, 'ttb':100, 'Yield':'Iron', 'desc':'Sophisticated mine to faciliate iron, which is used for further Production.'},
-                'Uranium Site': {'Price':600, 'Time':300, 'Yield':'Uranium', 'desc':'High tech facility to gather raw uranium. This has then to be enriched for further use.'},
-                'Organic Farm': {'Price':250, 'Time':60, 'Yield':'Cole', 'desc':'Basic vegetable farm to satisfy nutrition needs.'}
+                'Cole Drill': {'Price':300, 'Time':60, 'Yield':'Cole Sacks', 'incVal':10, 'desc':'Simple mining drill to extract cole rescources of a planet.'},
+                'Iron Mine': {'Price':450, 'Time':100, 'Yield':'Iron Ingots', 'incVal':10, 'desc':'Sophisticated mine to faciliate iron, which is used for further Production.'},
+                'Uranium Site': {'Price':600, 'Time':300, 'Yield':'Uranium Containers', 'incVal':10, 'desc':'High tech facility to gather raw uranium. This has then to be enriched for further use.'},
+                'Organic Farm': {'Price':250, 'Time':60, 'Yield':'Vegetable Crates', 'incVal':10, 'desc':'Basic vegetable farm to satisfy nutrition needs.'}
             },
             'PROD':{
-                'Weapon Forge': {'Price':500, 'Time':120, 'Yield':'Weapons', 'desc':'Simple mining drill to extract cole rescources of a planet.'},
-                'Ship Yard': {'Price':550, 'Time':130, 'Yield':'Ships', 'desc':'Simple mining drill to extract cole rescources of a planet.'},
-                'Uranium Enricher': {'Price':750, 'Time':400, 'Yield':'Uranium Rods', 'desc':'Simple mining drill to extract cole rescources of a planet.'}
+                'Weapon Forge': {'Price':500, 'Time':120, 'Yield':'Weapons', 'incVal':10, 'desc':'Simple mining drill to extract cole rescources of a planet.'},
+                'Ship Yard': {'Price':550, 'Time':130, 'Yield':'Ships', 'incVal':10, 'desc':'Simple mining drill to extract cole rescources of a planet.'},
+                'Uranium Enricher': {'Price':750, 'Time':400, 'Yield':'Uranium Rods', 'incVal':10, 'desc':'Simple mining drill to extract cole rescources of a planet.'}
             },
             'ENRG':{
-                'Wind Turbine': {'Price':150, 'Time':30, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole rescources of a planet.'},
-                'Cole Generator': {'Price':300, 'Time':50, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole rescources of a planet.'},
-                'M.W. Transmitter': {'Price':650, 'Time':250, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole rescources of a planet.'},
-                'Nuclear Reactor': {'Price':850, 'Time':350, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole rescources of a planet.'},
-                'Dyson Sphere': {'Price':3200, 'Time':600, 'Yield':'Energy', 'desc':'Simple mining drill to extract cole rescources of a planet.'}
+                'Wind Turbine': {'Price':150, 'Time':30, 'Yield':'Energy', 'incVal':100, 'desc':'Simple mining drill to extract cole rescources of a planet.'},
+                'Cole Generator': {'Price':300, 'Time':50, 'Yield':'Energy', 'incVal':500, 'desc':'Simple mining drill to extract cole rescources of a planet.'},
+                'M.W. Transmitter': {'Price':650, 'Time':250, 'Yield':'Energy', 'incVal':1000, 'desc':'Simple mining drill to extract cole rescources of a planet.'},
+                'Nuclear Reactor': {'Price':850, 'Time':350, 'Yield':'Energy', 'incVal':5000, 'desc':'Simple mining drill to extract cole rescources of a planet.'},
+                'Dyson Sphere': {'Price':3200, 'Time':600, 'Yield':'Energy', 'incVal':50000, 'desc':'Simple mining drill to extract cole rescources of a planet.'}
             },
             'DEV':{
                 'Trading Center': {'Price':575, 'Time':300, 'Yield':'Trading ability', 'desc':'Simple mining drill to extract cole rescources of a planet.'},
