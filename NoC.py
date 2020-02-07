@@ -18,6 +18,8 @@ from direct.gui.DirectGui import *
 from direct.task import Task
 
 import sys
+import random
+import math
 
 base = ShowBase()
 wp = WindowProperties()
@@ -55,6 +57,8 @@ class World(DirectObject):
         self.ActiveBuildSection  = 'RESC' #Is either RESC, PROD, ENRG, DEV or HAB
         self.ActiveBuildSlot = None
         self.ActiveBlueprint = None
+        self.PopulationTimeDelta = 2
+        self.taxFactor = 0.1
 
         self.planetDB = {} #All attributes and constructed buildings that a planet has
         self.buildingsDB = {} #Contains all buildable structures
@@ -79,6 +83,8 @@ class World(DirectObject):
         # Add all constantly running checks to the taskmanager
         taskMgr.add(self.setCam, "setcamTask")
         taskMgr.add(self.redrawHeadGUI, "redrawHeadGUITask")
+        taskMgr.doMethodLater(self.PopulationTimeDelta, self.populatePlanetTask, 'populatePlanetTask', extraArgs=['earth'], appendTask=True)
+        taskMgr.doMethodLater(2, self.generateMoneyTask, 'generateMoneyTask')
         # Other tasks are created in: constructBuilding()
 
         # Open up all listeners for varous mouse and keyboard inputs
@@ -253,8 +259,9 @@ class World(DirectObject):
     def clearPlanetInfo(self):
         self.PlanetInfoTitle['text']='Unknown'
         self.PlanetInfoAttributesTable['text']=''
-        self.PlanetInfoRescourceTable['text']='Rescources:\nNone'
-        self.PlanetInfoGoodsTable['text']='Goods:\nNone'
+        self.PlanetInfoRescourceTable['text']=''
+        self.PlanetInfoGoodsTable['text']=''
+        self.PlanetInfoENRGTable['text']=''
 
     def switchBuildSection(self, section):
         if section != self.ActiveBuildSection:
@@ -291,9 +298,9 @@ class World(DirectObject):
             self.PlanetBuildDescriptionField.show()
         self.ActiveBlueprint = blueprint
         blueprint['frameColor']=(0.3,0.3,0.3,0.9)
-        self.PlanetBuildDescriptionText['text']=(
-            building['desc'] + '\n\n'
-            'Requires: {}, {} Energy'.format(building['req'], building['enrgDrain']))
+        self.PlanetBuildDescriptionText['text'] = building['desc'] + '\n\n' + 'Requires: ' + str(building['req'])
+        if self.ActiveBuildSection != 'ENRG':
+            self.PlanetBuildDescriptionText['text'] += ', ' + str(building['enrgDrain']) + ' Energy'
         self.checkForConstructButton()
 
     def checkForConstructButton(self):
@@ -336,21 +343,33 @@ class World(DirectObject):
         slot = self.ActiveBuildSlot['text']
         blueprint = self.ActiveBlueprint['text']
         price = self.buildingsDB[section][blueprint]['Price']
+        enrgCap = self.planetDB[planet]['enrgCap']
+        enrgUsg = self.planetDB[planet]['enrgUsg']
+
 
         if self.money >= price:
-            self.planetDB[planet]['slots'][section][slot] = blueprint
-            self.money -= price
-            self.updateBuildingLables()
-
-            if section == 'RESC' or section == 'PROD':
-                good = self.buildingsDB[section][blueprint]['Yield']
-                incVal = self.buildingsDB[section][blueprint]['incVal']
-                taskMgr.doMethodLater(5, self.produceGoodTask, 'produceGoodTask', extraArgs=[planet,good,incVal], appendTask=True)
-                self.planetDB[planet]['enrgUsg']+=self.buildingsDB[section][blueprint]['enrgDrain']
-            elif section == 'ENRG':
+            if section == 'ENRG':
+                self.planetDB[planet]['slots'][section][slot] = blueprint
+                self.money -= price
+                self.updateBuildingLables()
                 self.planetDB[planet]['enrgCap']+=self.buildingsDB[section][blueprint]['incVal']
-            elif section == 'HAB':
-                self.planetDB[planet]['habCap']+=self.buildingsDB[section][blueprint]['incVal']
+            else:
+                if enrgUsg + self.buildingsDB[section][blueprint]['enrgDrain'] <= enrgCap:
+                    self.planetDB[planet]['slots'][section][slot] = blueprint
+                    self.money -= price
+                    self.updateBuildingLables()
+                    if section == 'RESC' or section == 'PROD':
+                        good = self.buildingsDB[section][blueprint]['Yield']
+                        incVal = self.buildingsDB[section][blueprint]['incVal']
+                        taskMgr.doMethodLater(5, self.produceGoodTask, 'produceGoodTask', extraArgs=[planet,good,incVal], appendTask=True)
+                        self.planetDB[planet]['enrgUsg']+=self.buildingsDB[section][blueprint]['enrgDrain']
+                    
+                    elif section == 'HAB':
+                        self.planetDB[planet]['habCap']+=self.buildingsDB[section][blueprint]['incVal']
+                else:
+                    self.createProblemDialog('Not sufficient Energy')
+        else:
+            self.createProblemDialog('Not enough Money')
 
     def updateBuildingLables(self):
         planet = self.selectedObjectName
@@ -385,6 +404,15 @@ class World(DirectObject):
             self.ActiveBuildSlot['relief']='raised'
             self.ActiveBuildSlot = None
 
+    def createProblemDialog(self, problemText):
+        self.ProblemDialog = OkDialog(
+            dialogName="OkDialog", text=problemText, command=self.cleanupProblemDialog, 
+            frameColor=(0.15,0.15,0.15,0.8), text_fg=(1,1,1,1))
+
+    def cleanupProblemDialog(self, args):
+        self.ProblemDialog.cleanup()
+
+
     def produceGoodTask(self, celObj, good, incVal, task):
         if not ('goods' in self.planetDB[celObj]):
             self.planetDB[celObj].update({'goods':{}})
@@ -394,6 +422,20 @@ class World(DirectObject):
         self.planetDB[celObj]['goods'][good]+=incVal
         
         return task.again
+
+    def populatePlanetTask(self, planet, task):
+        if self.planetDB[planet]['habCap'] > self.planetDB[planet]['pop']:
+            self.planetDB[planet]['pop']+=random.randint(1,3)
+        return task.again
+
+    def generateMoneyTask(self, task):
+        wholePop = 0
+        for planet, data in self.planetDB.items():
+            if data['type'] != 'Star':
+                wholePop += data['pop']
+        self.money += round(wholePop * self.taxFactor)
+        return task.again
+
 
     #****************************************
     #       Initialisation Functions        *
@@ -507,7 +549,7 @@ class World(DirectObject):
 
         self.PlanetBuildSlot3 = DirectButton(text='R3', 
             pos=(1.4,0,0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.02,0.02),
-            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
+            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.7), text_fg=(0.5,0.5,0.5,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
         self.PlanetBuildSlot3['extraArgs'] = [self.PlanetBuildSlot3]
         self.PlanetBuildSlot3Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
@@ -515,7 +557,7 @@ class World(DirectObject):
 
         self.PlanetBuildSlot4 = DirectButton(text='R4', 
             pos=(1.4,0,0), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.02,0.02),
-            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
+            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.7), text_fg=(0.5,0.5,0.5,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
         self.PlanetBuildSlot4['extraArgs'] = [self.PlanetBuildSlot4]
         self.PlanetBuildSlot4Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
@@ -523,7 +565,7 @@ class World(DirectObject):
 
         self.PlanetBuildSlot5 = DirectButton(text='R5', 
             pos=(1.4,0,-0.4), hpr=(0,0,45), pad=(0.04, 0.04), borderWidth=(0.02,0.02),
-            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.9), text_fg=(0.5,0.5,0.5,1), text_roll=45,
+            text_scale=0.08, frameColor=(0.2,0.2,0.2,0.7), text_fg=(0.5,0.5,0.5,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
         self.PlanetBuildSlot5['extraArgs'] = [self.PlanetBuildSlot5]
         self.PlanetBuildSlot5Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
@@ -710,11 +752,11 @@ class World(DirectObject):
                 'Uranium Enricher': {'Price':750, 'Time':400, 'Yield':'Uranium Rods', 'incVal':10, 'req':'Uranium Containers', 'enrgDrain': 650, 'desc':'Simple mining drill to extract cole rescources of a planet.'}
             },
             'ENRG':{
-                'Wind Turbine': {'Price':150, 'Time':30, 'Yield':'Energy', 'incVal':100, 'req':'Wind', 'desc':'First instance of energy supply. Needs at least level 1 Wind activities.'},
-                'Cole Generator': {'Price':300, 'Time':50, 'Yield':'Energy', 'incVal':500, 'req':'Cole Sacks', 'desc':'Delivers bigger and more reliable energy output. Polution might be a Prolbem though.'},
-                'M.W. Transmitter': {'Price':650, 'Time':250, 'Yield':'Energy', 'incVal':1000, 'req':'Micro Waves', 'desc':'Enables multiple Planents to send energy supply to each other.'},
-                'Nuclear Reactor': {'Price':850, 'Time':350, 'Yield':'Energy', 'incVal':5000, 'req':'Uranium Rods', 'desc':'Highest energy source that can be constructed planet site.'},
-                'Dyson Sphere': {'Price':3200, 'Time':600, 'Yield':'Energy', 'incVal':50000, 'req':'Sun', 'desc':'Experimental construction, which others refer to as the newest wonder of the known worlds.'}
+                'Wind Turbine': {'Price':150, 'Time':30, 'Yield':'100 Energy', 'incVal':100, 'req':'Wind', 'desc':'First instance of energy supply. Needs at least level 1 Wind activities.'},
+                'Cole Generator': {'Price':300, 'Time':50, 'Yield':'500 Energy', 'incVal':500, 'req':'Cole Sacks', 'desc':'Delivers bigger and more reliable energy output. Polution might be a Prolbem though.'},
+                'M.W. Transmitter': {'Price':650, 'Time':250, 'Yield':'1\'000 Energy', 'incVal':1000, 'req':'Micro Waves', 'desc':'Enables multiple Planents to send energy supply to each other.'},
+                'Nuclear Reactor': {'Price':850, 'Time':350, 'Yield':'5\'000 Energy', 'incVal':5000, 'req':'Uranium Rods', 'desc':'Highest energy source that can be constructed planet site.'},
+                'Dyson Sphere': {'Price':3200, 'Time':600, 'Yield':'50\'000 Energy', 'incVal':50000, 'req':'Sun', 'desc':'Experimental construction, which others refer to as the newest wonder of the known worlds.'}
             },
             'DEV':{
                 'Trading Center': {'Price':575, 'Time':300, 'Yield':'Trading ability', 'enrgDrain': 450, 'desc':'Allows to set trading routes and to trade with the open galaxy market. Only one needed per solar system.'},
