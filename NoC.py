@@ -42,7 +42,7 @@ class World(DirectObject):
         self.dayscale = self.yearscale / 365.0 * 5
         self.yearCounter = 0
         self.dayCounter = 0
-        self.money = 1000
+        self.money = 2000
         self.orbitscale = 10
         self.sizescale = 0.6
         self.camSpeed = 10
@@ -346,30 +346,42 @@ class World(DirectObject):
         enrgCap = self.planetDB[planet]['enrgCap']
         enrgUsg = self.planetDB[planet]['enrgUsg']
 
+        getsBuild = False
+        addTask = False
 
         if self.money >= price:
             if section == 'ENRG':
-                self.planetDB[planet]['slots'][section][slot] = blueprint
-                self.money -= price
-                self.updateBuildingLables()
+                getsBuild = True
                 self.planetDB[planet]['enrgCap']+=self.buildingsDB[section][blueprint]['incVal']
             else:
                 if enrgUsg + self.buildingsDB[section][blueprint]['enrgDrain'] <= enrgCap:
-                    self.planetDB[planet]['slots'][section][slot] = blueprint
-                    self.money -= price
-                    self.updateBuildingLables()
-                    if section == 'RESC' or section == 'PROD':
-                        good = self.buildingsDB[section][blueprint]['Yield']
-                        incVal = self.buildingsDB[section][blueprint]['incVal']
-                        taskMgr.doMethodLater(5, self.produceGoodTask, 'produceGoodTask', extraArgs=[planet,good,incVal], appendTask=True)
+                    if section == 'RESC':
+                        if self.buildingsDB[section][blueprint]['req'] in self.planetDB[planet]['resc']:
+                            getsBuild = True
+                            addTask = True
+                        else:
+                            self.createProblemDialog('Needed Rescource is not available')
+                    elif section == 'PROD':
+                        getsBuild = True
+                        addTask = True
                         self.planetDB[planet]['enrgUsg']+=self.buildingsDB[section][blueprint]['enrgDrain']
-                    
                     elif section == 'HAB':
+                        getsBuild = True
                         self.planetDB[planet]['habCap']+=self.buildingsDB[section][blueprint]['incVal']
                 else:
                     self.createProblemDialog('Not sufficient Energy')
         else:
             self.createProblemDialog('Not enough Money')
+        
+        if getsBuild:
+            self.planetDB[planet]['slots'][section][slot] = blueprint
+            self.money -= price
+            self.updateBuildingLables()
+
+        if addTask:
+            good = self.buildingsDB[section][blueprint]['Yield']
+            incVal = self.buildingsDB[section][blueprint]['incVal']
+            taskMgr.doMethodLater(5, self.produceGoodTask, 'produceGoodTask', extraArgs=[planet,good,incVal], appendTask=True)
 
     def updateBuildingLables(self):
         planet = self.selectedObjectName
@@ -615,7 +627,7 @@ class World(DirectObject):
             'type':'Planet',    'athm':False,   'wind':1, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,
-            'resc':{'Coal':100, 'Iron':50} }})
+            'resc':{'Coal':'Common', 'Iron':'Common'} }})
         self.mercury = loader.loadModel("models/planet_sphere")
         self.mercury_tex = loader.loadTexture("models/mercury_1k_tex.jpg")
         self.mercury.setTexture(self.mercury_tex, 1)
@@ -630,7 +642,7 @@ class World(DirectObject):
             'type':'Planet',    'athm':False,   'wind':2, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,
-            'resc':{'Coal':100, 'Uranium':250} }})
+            'resc':{'Coal':'Common', 'Uranium':'Normal'} }})
         self.venus = loader.loadModel("models/planet_sphere")
         self.venus_tex = loader.loadTexture("models/venus_1k_tex.jpg")
         self.venus.setTexture(self.venus_tex, 1)
@@ -645,7 +657,7 @@ class World(DirectObject):
             'type':'Planet',    'athm':False,   'wind':1, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,
-            'resc':{'Gemstone':100, 'Iron':50} }})
+            'resc':{'Gemstone':'Rare', 'Iron':'Rare'} }})
         self.mars = loader.loadModel("models/planet_sphere")
         self.mars_tex = loader.loadTexture("models/mars_1k_tex.jpg")
         self.mars.setTexture(self.mars_tex, 1)
@@ -660,7 +672,7 @@ class World(DirectObject):
             'type':'Planet',    'athm':True,    'wind':1, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,
-            'resc':{'Iron':50, 'Cole':50, 'Gemstone':150} }})
+            'resc':{'Iron':'Normal', 'Cole':'Common', 'Gemstone':'Rare'} }})
         self.earth = loader.loadModel("models/planet_sphere")
         self.earth_tex = loader.loadTexture("models/earth_1k_tex.jpg")
         self.earth.setTexture(self.earth_tex, 1)
@@ -677,7 +689,7 @@ class World(DirectObject):
             'type':'Moon',      'athm':False,   'wind':0, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,
-            'resc':{'Coal':300, 'Cheese':20} }})
+            'resc':{'Coal':'Common', 'Cheese':'Rare'} }})
         self.moon = loader.loadModel("models/planet_sphere")
         self.moon_tex = loader.loadTexture("models/moon_1k_tex.jpg")
         self.moon.setTexture(self.moon_tex, 1)
