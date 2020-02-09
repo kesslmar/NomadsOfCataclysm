@@ -15,6 +15,7 @@ from panda3d.core import *
 from panda3d.core import WindowProperties
 from direct.interval.IntervalGlobal import *
 from direct.gui.DirectGui import *
+from direct.gui.OnscreenImage import OnscreenImage
 from direct.task import Task
 
 import sys
@@ -323,6 +324,9 @@ class World(DirectObject):
                 command=self.switchBuildBlueprint)
             newBlueprint['extraArgs']=[newBlueprint,v]
             self.PlanetBuildPanelContent.append(newBlueprint)
+
+            newImage = OnscreenImage(image='models/powerplant.jpg', pos=(-0.27, 0, 0.003), scale=(0.125, 1, 0.12),
+                                     parent=(newBlueprint))
 
             newTitle = DirectLabel(text=k, 
             pos=(-0.1, 0, 0.05), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
