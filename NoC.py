@@ -39,8 +39,8 @@ class World(DirectObject):
         camera.setHpr(0, -45, 0)
 
         # The global variables we use to control the speed and size of objects
-        self.yearscale = 1800
-        self.dayscale = self.yearscale / 365.0 * 25
+        self.yearscale = 900
+        self.dayscale = self.yearscale / 365.0*30
         self.yearCounter = 0
         self.dayCounter = 0
         self.money = 2000
@@ -151,8 +151,8 @@ class World(DirectObject):
                          pos[1]-self.followObjectScale * 4, 
                          self.followObjectScale * 4)
         if mode=='build':
-            camera.setPos(pos[0]-self.followObjectScale * 0.68, 
-                         pos[1]-self.followObjectScale * 3, 
+            camera.setPos(pos[0]-self.followObjectScale * 0.9, 
+                         pos[1]-self.followObjectScale * 3.3, 
                          0)
         return task.cont
 
@@ -179,15 +179,15 @@ class World(DirectObject):
             self.followObjectScale = self.planetDB[obj.getNetTag('name')]['scale']
             pos = self.selectedObject.getPos(base.render)
             camPos = camera.getPos()
-            zoomInterval = camera.posInterval(0.3, Point3(pos[0]-self.followObjectScale * 1.5,
-                                                          pos[1]-self.followObjectScale * 4, 
-                                                          self.followObjectScale * 4), camPos)
-            zoomInterval.start()
-            taskMgr.add(self.followCam, 'infocamTask', extraArgs=['info'], appendTask=True)
             self.clearPlanetInfo()
             self.fillPlanetInfo()
+            self.checkForBuildButton()
+            zoomInterval = Sequence(camera.posInterval(0.3, Point3(pos[0]-self.followObjectScale * 1.5,
+                                                          pos[1]-self.followObjectScale * 4, 
+                                                          self.followObjectScale * 4), camPos), Func(self.PlanetInfoPanel.show))
+            zoomInterval.start()
+            taskMgr.add(self.followCam, 'infocamTask', extraArgs=['info'], appendTask=True)
             taskMgr.doMethodLater(1, self.updatePlanetInfoTask, 'updatePlanetInfoTask')
-            self.PlanetInfoPanel.show()
         else:
             self.PlanetInfoModeOn = False
             taskMgr.remove('infocamTask')
@@ -203,29 +203,27 @@ class World(DirectObject):
     def togglePlanetBuildMode(self, mode=False):
         pos = self.selectedObject.getPos(base.render)
         camPos = camera.getPos()
+        scale = self.followObjectScale
         if mode:
             self.PlanetInfoPanel.hide()
             self.clearPlanetInfo()
             self.fillBuildPanel()
-            self.PlanetBuildPanel.show()
+            self.checkForConstructButton()
             self.updateBuildingLables()
             taskMgr.remove('infoCamTask')
-            zoomInterval = camera.posHprInterval(0.3, Point3(pos[0]-self.followObjectScale * 0.68,
-                                                          pos[1]-self.followObjectScale * 3, 
-                                                          0), Vec3(0,0,0), camPos)
+            zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 0.9, pos[1]-scale * 3.3, 0), Vec3(0,0,0), camPos),
+                                    Func(self.PlanetBuildPanel.show))
             zoomInterval.start()
             taskMgr.add(self.followCam, 'buildcamTask', extraArgs=['build'], appendTask=True)
         else:
             self.PlanetBuildPanel.hide()
-            self.fillPlanetInfo()
-            self.PlanetInfoPanel.show()
             self.clearSelectedBuildSlot()
             self.clearBuildPanel()
             self.updateBuildingLables()
+            self.fillPlanetInfo()
             taskMgr.remove('buildcamTask')
-            zoomInterval = camera.posHprInterval(0.3, Point3(pos[0]-self.followObjectScale * 1.5,
-                                                          pos[1]-self.followObjectScale * 4, 
-                                                          self.followObjectScale * 4), Vec3(0,-45,0), camPos)
+            zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 1.5, pos[1]-scale * 4, scale * 4), Vec3(0,-45,0), camPos),
+                                    Func(self.PlanetInfoPanel.show))
             zoomInterval.start()
             taskMgr.add(self.followCam, 'infocamTask', extraArgs=['info'], appendTask=True)
 
@@ -269,7 +267,9 @@ class World(DirectObject):
                 'Energy usage:\t' + str(self.planetDB[objID]['enrgUsg']) + '\n\n'
                 
                 'Habitation capacity:\t' + str(self.planetDB[objID]['habCap']) + '\n'
-                'Population count:\t' + str(self.planetDB[objID]['pop'])
+                'Population count:\t' + str(self.planetDB[objID]['pop']) + '\n\n'
+
+                'Per Capita GDP:\t' + str(self.taxFactor)
             )
 
     def updatePlanetInfoTask(self, task):
@@ -282,6 +282,12 @@ class World(DirectObject):
         self.PlanetInfoRescourceTable['text']=''
         self.PlanetInfoGoodsTable['text']=''
         self.PlanetInfoENRGTable['text']=''
+
+    def checkForBuildButton(self):
+        if self.planetDB[self.selectedObjectName]['type']=='Star':
+            self.PlanetInfoBuildButton.hide()
+        else:
+            self.PlanetInfoBuildButton.show()
 
     def switchBuildSection(self, section):
         if section != self.ActiveBuildSection:
@@ -318,9 +324,11 @@ class World(DirectObject):
             self.PlanetBuildDescriptionField.show()
         self.ActiveBlueprint = blueprint
         blueprint['frameColor']=(0.3,0.3,0.3,0.9)
-        self.PlanetBuildDescriptionText['text'] = building['desc'] + '\n\n' + 'Requires: ' + str(building['req'])
-        if self.ActiveBuildSection != 'ENRG':
-            self.PlanetBuildDescriptionText['text'] += ', ' + str(building['enrgDrain']) + ' Energy'
+        
+        self.PlanetBuildDescriptionText['text'] = ( building['desc'] + '\n\n'
+                                                    'Requires: ' + building['reqText'] + '\n\n'
+                                                    'Yields: ' + building['yieldText'])
+        
         self.checkForConstructButton()
 
     def checkForConstructButton(self):
@@ -351,7 +359,7 @@ class World(DirectObject):
             pos=(-0.1, 0, 0.05), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
             parent = newBlueprint, text_align=TextNode.ALeft, text_scale = 0.06)
 
-            newAttributes = DirectLabel(text='Price: ' + str(v['Price']) + '\nYield: ' + str(v['Yield']), 
+            newAttributes = DirectLabel(text=('Price: ' + str(v['Price'])), 
             pos=(-0.1, 0, -0.02), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
             parent = newBlueprint, text_align=TextNode.ALeft, text_scale = 0.045)
 
@@ -391,6 +399,7 @@ class World(DirectObject):
                     elif section == 'HAB':
                         getsBuild = True
                         self.planetDB[planet]['habCap']+=self.buildingsDB[section][blueprint]['incVal']
+                        self.planetDB[planet]['enrgUsg']+=self.buildingsDB[section][blueprint]['enrgDrain']
                 else:
                     self.createProblemDialog('Not sufficient Energy')
         else:
@@ -432,7 +441,7 @@ class World(DirectObject):
             element.destroy()
         self.PlanetBuildPanelContent = []
         self.ActiveBlueprint = None
-        self.PlanetBuildDescriptionField.hide()
+        self.PlanetBuildDescriptionText['text']=''
 
     def clearSelectedBuildSlot(self):
         if self.ActiveBuildSlot != None:
@@ -527,17 +536,19 @@ class World(DirectObject):
         #---------------------------------------------------
         self.PlanetBuildPanel = DirectFrame(
             frameColor=(0.15, 0.15, 0.15, 0.9),
-            frameSize=(-0.4, 0.4, 0.65, -0.65),
+            frameSize=(-0.4, 1.23, 0.66, -0.65),
             pos=(-1.3, 0, 0))
         self.PlanetBuildPanel.hide()
 
         self.PlanetBuildPanelContent = []
 
+        self.PlanetBuildPanelRuler = DirectFrame(frameColor=(0,0,0,0.9), frameSize=(-0.003, 0.003, -1.305, 0),
+            pos=(0.408,0,0.657), parent=self.PlanetBuildPanel)
+
         self.PlanetBuildDescriptionField = DirectFrame(
-            frameColor=(0.15, 0.15, 0.15, 0.9),
+            frameColor=(0.2, 0.2, 0.22, 0.9),
             frameSize=(-0.4, 0.4, 0.25, -0.25),
             pos=(0.825, 0, 0.41), parent=self.PlanetBuildPanel)
-        self.PlanetBuildDescriptionField.hide()
 
         self.PlanetBuildDescriptionText = DirectLabel(text='', 
             pos=(-0.36, 0, 0.18), text_fg=(1,1,1,1), frameColor=(0,0,0,0), text_scale = 0.05, text_wordwrap=15,
@@ -557,67 +568,80 @@ class World(DirectObject):
             pos=(-0.1,0,0.68),pad=(1.7, 1), borderWidth=(0.06,0.06),
             scale=0.15, text_scale=0.5, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
             items=["RESC", "PROD", "ENRG", "DEV", "HAB"], command=self.switchBuildSection, 
-            initialitem=0, highlightColor=(0.65, 0.65, 0.65, 1))
-        self.PlanetBuildSectionDropdown.reparentTo(self.PlanetBuildPanel)
+            initialitem=0, highlightColor=(0.65, 0.65, 0.65, 1), parent=self.PlanetBuildPanel)
 
+        self.PlanetBuildQuickInfo = DirectFrame(frameSize=(0, 1.63, -0.08, 0.07), pos=(-0.4,0,-0.73),
+            frameColor=(0.15, 0.15, 0.15, 0.9), parent=self.PlanetBuildPanel)
+
+        self.PlanetBuildQuickText1 = DirectLabel(text='ATHM: Yes  -  WIND: 1  -  HAB: 20/100  -  ENRG: 60/100', 
+            pos=(0.03, 0, 0.015), text_fg=(0.9,0.9,0.9,1), frameColor=(0,0,0,0), text_scale = 0.05,
+            frameSize=(0,0.8,0,0.5), parent=self.PlanetBuildQuickInfo, text_align=TextNode.ALeft)
+        
+        self.PlanetBuildQuickText2 = DirectLabel(text='RESC: Cole, Iron, Uranium', 
+            pos=(0.03, 0, -0.038), text_fg=(0.9,0.9,0.9,1), frameColor=(0,0,0,0), text_scale = 0.05,
+            frameSize=(0,0.8,0,0.5), parent=self.PlanetBuildQuickInfo, text_align=TextNode.ALeft)
+
+        self.PlanetBuildQuickText3 = DirectLabel(text='GOODS: Cole sacks, Uranium rods', 
+            pos=(0.7, 0, -0.038), text_fg=(0.9,0.9,0.9,1), frameColor=(0,0,0,0), text_scale = 0.05,
+            frameSize=(0,0.8,0,0.5), parent=self.PlanetBuildQuickInfo, text_align=TextNode.ALeft)
 
         # All static gui elements for the planet build slots
         #---------------------------------------------------
-        self.PlanetBuildSlotContainer = DirectFrame(pos=(0.65,0,0), frameColor=(0.5,0.5,0.5,1))
+        self.PlanetBuildSlotContainer = DirectFrame(pos=(1.45,0,0), frameColor=(0.5,0.5,0.5,1))
         self.PlanetBuildSlotContainer.reparentTo(self.PlanetBuildPanel)
 
         self.PlanetBuildSlot1 = DirectButton(text='R1', 
-            pos=(1.7,0,0.2), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
+            pos=(0.45,0,0.65), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
             text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(1,1,1,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer)
         self.PlanetBuildSlot1['extraArgs'] = [self.PlanetBuildSlot1]
-        self.PlanetBuildSlot1Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), text_bg=(0.2,0.2,0.2,0.8),
+        self.PlanetBuildSlot1Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), text_bg=(0.2,0.2,0.2,0.9),
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot1)
 
         self.PlanetBuildSlot2 = DirectButton(text='R2', 
-            pos=(1.7,0,-0.2), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
+            pos=(0.17,0,0.39), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
             text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(1,1,1,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer)
         self.PlanetBuildSlot2['extraArgs'] = [self.PlanetBuildSlot2]
-        self.PlanetBuildSlot2Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
+        self.PlanetBuildSlot2Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot2)
 
         self.PlanetBuildSlot3 = DirectButton(text='R3', 
-            pos=(1.4,0,0.4), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
+            pos=(0.05,0,0), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
             text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(0.5,0.5,0.5,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
         self.PlanetBuildSlot3['extraArgs'] = [self.PlanetBuildSlot3]
-        self.PlanetBuildSlot3Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
+        self.PlanetBuildSlot3Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot3)
 
         self.PlanetBuildSlot4 = DirectButton(text='R4', 
-            pos=(1.4,0,0), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
+            pos=(0.17,0,-0.39), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
             text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(0.5,0.5,0.5,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
         self.PlanetBuildSlot4['extraArgs'] = [self.PlanetBuildSlot4]
-        self.PlanetBuildSlot4Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
+        self.PlanetBuildSlot4Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot4)
 
         self.PlanetBuildSlot5 = DirectButton(text='R5', 
-            pos=(1.4,0,-0.4), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
+            pos=(0.45,0,-0.65), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
             text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(0.5,0.5,0.5,1), text_roll=45,
             command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
         self.PlanetBuildSlot5['extraArgs'] = [self.PlanetBuildSlot5]
-        self.PlanetBuildSlot5Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), 
+        self.PlanetBuildSlot5Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
             frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot5)
 
 
-        self.PlanetBuildWire1 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(0,1,0,1),
-            pos=(1.7,-0.5,-0.035))
-        self.PlanetBuildWire1.reparentTo(self.PlanetBuildSlotContainer)
+        #self.PlanetBuildWire1 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(0,1,0,1),
+        #    pos=(1.7,-0.5,-0.035))
+        #self.PlanetBuildWire1.reparentTo(self.PlanetBuildSlotContainer)
 
-        self.PlanetBuildWire2 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
-            pos=(1.4,-0.5, 0.165))
-        self.PlanetBuildWire2.reparentTo(self.PlanetBuildSlotContainer)
+        #self.PlanetBuildWire2 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
+        #    pos=(1.4,-0.5, 0.165))
+        #self.PlanetBuildWire2.reparentTo(self.PlanetBuildSlotContainer)
 
-        self.PlanetBuildWire3 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
-            pos=(1.4,-0.5,-0.235))
-        self.PlanetBuildWire3.reparentTo(self.PlanetBuildSlotContainer)
+        #self.PlanetBuildWire3 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
+        #    pos=(1.4,-0.5,-0.235))
+        #self.PlanetBuildWire3.reparentTo(self.PlanetBuildSlotContainer)
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
@@ -776,34 +800,108 @@ class World(DirectObject):
     def fillBuildingsDB(self):
         self.buildingsDB = {
             'RESC':{
-                'Cole Drill': {'Price':300, 'Time':60, 'Yield':'Cole Sacks', 'incVal':10, 'req':'Cole', 'enrgDrain': 100, 'desc':'Simple mining drill to extract cole rescources of a planet.', 'img':'models/coledrill.jpg'},
-                'Iron Mine': {'Price':450, 'Time':100, 'Yield':'Iron Ingots', 'incVal':10, 'req':'Iron', 'enrgDrain': 150, 'desc':'Sophisticated mine to faciliate iron, which is used for further Production.', 'img':'models/coledrill.jpg'},
-                'Uranium Site': {'Price':600, 'Time':300, 'Yield':'Uranium Containers', 'incVal':10, 'req':'Uranium', 'enrgDrain': 500, 'desc':'High tech facility to gather raw uranium. This has then to be enriched for further use.', 'img':'models/coledrill.jpg'},
-                'Organic Farm': {'Price':250, 'Time':60, 'Yield':'Vegetable Crates', 'incVal':10, 'req':'Athmosphere', 'enrgDrain': 200, 'desc':'Basic vegetable farm to satisfy nutrition needs.', 'img':'models/coledrill.jpg'}
+                'Cole Drill': {     'Price':300, 'Time':60, 'Yield':'Cole sacks', 'incVal':10, 'yieldText':'10 Cole sacks per tick', 
+                                    'req':'Cole', 'decVal':0, 'reqText':'Cole, 100 Energy', 'enrgDrain': 100, 
+                                    'desc':'Simple mining drill to extract cole rescources of a planet.', 
+                                    'img':'models/coledrill.jpg'},
+
+                'Iron Mine': {      'Price':450, 'Time':100, 'Yield':'Iron ingots', 'incVal':15, 'yieldText':'15 Iron ingots per tick',
+                                    'req':'Iron', 'decVal':0, 'reqText':'Iron, 150 Energy', 'enrgDrain': 150, 
+                                    'desc':'Sophisticated mine to faciliate iron, which is used for further Production.', 
+                                    'img':'models/ironmine.jpg'},
+
+                'Uranium Site': {   'Price':600, 'Time':300, 'Yield':'Uranium containers', 'incVal':5, 'yieldText':'5 Uranium containters per tick',
+                                    'req':'Uranium', 'decVal':0, 'reqText':'Uranium, 500 Energy', 'enrgDrain': 500, 
+                                    'desc':'High tech facility to gather raw uranium. This has then to be enriched for further use.', 
+                                    'img':'models/placeholder.jpg'},
+
+                'Organic Farm': {   'Price':250, 'Time':60, 'Yield':'Vegetable crates', 'incVal':20, 'yieldText':'20 Vegetable crates per tick',
+                                    'req':'Athmosphere', 'decVal':0, 'reqText':'Athmosphere, 200 Energy', 'enrgDrain': 200, 
+                                    'desc':'Basic vegetable farm to satisfy nutrition needs.', 
+                                    'img':'models/placeholder.jpg'}
             },
             'PROD':{
-                'Weapon Forge': {'Price':500, 'Time':120, 'Yield':'Weapons', 'incVal':10, 'req':'Iron Ingots', 'enrgDrain': 250, 'desc':'Simple mining drill to extract cole rescources of a planet.', 'img':'models/coledrill.jpg'},
-                'Ship Yard': {'Price':550, 'Time':130, 'Yield':'Ships', 'incVal':10, 'req':'Iron Ingots', 'enrgDrain': 300, 'desc':'Simple mining drill to extract cole rescources of a planet.', 'img':'models/coledrill.jpg'},
-                'Uranium Enricher': {'Price':750, 'Time':400, 'Yield':'Uranium Rods', 'incVal':10, 'req':'Uranium Containers', 'enrgDrain': 650, 'desc':'Simple mining drill to extract cole rescources of a planet.', 'img':'models/coledrill.jpg'}
+                'Weapon Forge': {   'Price':500, 'Time':120, 'Yield':'Weapons', 'incVal':10, 'yieldText':'10 Weapons per tick',
+                                    'req':'Iron ingots', 'decVal':10, 'reqText':'10 Iron ingots per tick, 250 Energy', 'enrgDrain': 250, 
+                                    'desc':'Simple mining drill to extract cole rescources of a planet.', 
+                                    'img':'models/placeholder.jpg'},
+
+                'Ship Yard': {      'Price':550, 'Time':130, 'Yield':'Ships', 'incVal':10, 'yieldText':'10 Ships per tick',
+                                    'req':'Iron ingots', 'decVal':30, 'reqText':'30 Iron ingots per tick, 250 Energy', 'enrgDrain': 300, 
+                                    'desc':'Simple mining drill to extract cole rescources of a planet.', 
+                                    'img':'models/placeholder.jpg'},
+
+                'Uranium Enricher':{'Price':750, 'Time':400, 'Yield':'Uranium rods', 'incVal':10, 'yieldText':'10 Uranium rods per tick',
+                                    'req':'Uranium containers', 'decVal':5, 'reqText': '5 Uranium container per tick, 650 Energy','enrgDrain': 650, 
+                                    'desc':'Simple mining drill to extract cole rescources of a planet.', 
+                                    'img':'models/placeholder.jpg'}
             },
             'ENRG':{
-                'Wind Turbine': {'Price':150, 'Time':30, 'Yield':'100 Energy', 'incVal':100, 'req':'Wind', 'desc':'First instance of energy supply. Needs at least level 1 Wind activities.', 'img':'models/windgenerator.jpg'},
-                'Cole Generator': {'Price':300, 'Time':50, 'Yield':'500 Energy', 'incVal':500, 'req':'Cole Sacks', 'desc':'Delivers bigger and more reliable energy output. Polution might be a Prolbem though.', 'img':'models/coleplant.jpg'},
-                'M.W. Transmitter': {'Price':650, 'Time':250, 'Yield':'1\'000 Energy', 'incVal':1000, 'req':'Micro Waves', 'desc':'Enables multiple Planents to send energy supply to each other.', 'img':'models/mw_transmitter.jpg'},
-                'Nuclear Reactor': {'Price':850, 'Time':350, 'Yield':'5\'000 Energy', 'incVal':5000, 'req':'Uranium Rods', 'desc':'Highest energy source that can be constructed planet site.', 'img':'models/powerplant.jpg'},
-                'Dyson Sphere': {'Price':3200, 'Time':600, 'Yield':'50\'000 Energy', 'incVal':50000, 'req':'Sun', 'desc':'Experimental construction, which others refer to as the newest wonder of the known worlds.', 'img':'models/dysonsphere.jpg'}
+                'Wind Turbine': {   'Price':150, 'Time':30, 'Yield':'Energy', 'incVal':150, 'yieldText':'150 Energy',
+                                    'req':'Wind', 'decVal':0, 'reqText':'Wind',
+                                    'desc':'First instance of energy supply. Needs at least level 1 Wind activities.', 
+                                    'img':'models/windgenerator.jpg'},
+
+                'Cole Generator': { 'Price':300, 'Time':50, 'Yield':'Energy', 'incVal':500, 'yieldText':'500 Energy', 
+                                    'req':'Cole sacks', 'decVal':5, 'reqText':'5 Cole sacks per tick',
+                                    'desc':'Delivers bigger and more reliable energy output. Polution might be a Prolbem though.', 
+                                    'img':'models/coleplant.jpg'},
+
+                'M.W. Transmitter':{'Price':650, 'Time':250, 'Yield':'Energy', 'incVal':1000, 'yieldText':'1000 Energy', 
+                                    'req':'Micro waves', 'decVal':0, 'reqText':'Micro wave connection to other planet',
+                                    'desc':'Enables multiple Planents to send energy supply to each other.', 
+                                    'img':'models/mw_transmitter.jpg'},
+
+                'Nuclear Reactor': {'Price':850, 'Time':350, 'Yield':'Energy', 'incVal':5000, 'yieldText':'5000 Energy', 
+                                    'req':'Uranium rods', 'decVal':7, 'reqText':'7 Uranium rods per tick',
+                                    'desc':'Highest energy source that can be constructed planet site.', 
+                                    'img':'models/powerplant.jpg'},
+
+                'Dyson Sphere': {   'Price':3200, 'Time':600, 'Yield':'Energy', 'incVal':50000, 'yieldText':'50000 Energy', 
+                                    'req':'Sun', 'decVal':0, 'reqText':'Sun as center of construction',
+                                    'desc':'Experimental construction, which others refer to as the newest wonder of the known worlds.', 'img':'models/dysonsphere.jpg'}
             },
             'DEV':{
-                'Trading Center': {'Price':575, 'Time':300, 'Yield':'Trading ability', 'req':None, 'enrgDrain': 450, 'desc':'Allows to set trading routes and to trade with the open galaxy market. Only one needed per solar system.', 'img':'models/coledrill.jpg'},
-                'Milkyway Uni.': {'Price':350, 'Time':200, 'Yield':'Society improv.', 'req':None, 'enrgDrain': 240, 'desc':'Simple mining drill to extract cole rescources of a planet.', 'img':'models/coledrill.jpg'},
-                'Science Institut': {'Price':500, 'Time':280, 'Yield':'New researches', 'req':None, 'enrgDrain': 310, 'desc':'Researches conducted by this institute allow enhancements of productivity and habitation standards.', 'img':'models/coledrill.jpg'},
-                'Space Port': {'Price':190, 'Time':150, 'Yield':'Space abilities', 'req':None, 'enrgDrain': 560, 'desc':'Extends the interactions of a planet with its surrounding objects like asteroids or other celestial objects.', 'img':'models/coledrill.jpg'}
+                'Trading Center': { 'Price':575, 'Time':300, 'Yield':'Trading ability', 'incVal':0, 'yieldText':'Trading ability',
+                                    'req':None, 'decVal':0, 'reqText':'450 Energy', 'enrgDrain': 450,
+                                    'desc':'Allows to set trading routes and to trade with the open galaxy market. Only one needed per solar system.', 
+                                    'img':'models/placeholder.jpg'},
+                
+                'Milkyway Uni.': {  'Price':350, 'Time':200, 'Yield':'Society improvements', 'incVal':0, 'yieldText':'Society improvements',
+                                    'req':None, 'decVal':0, 'reqText':'240 Energy', 'enrgDrain': 240,
+                                    'desc':'Simple mining drill to extract cole rescources of a planet.', 
+                                    'img':'models/placeholder.jpg'},
+                
+                'Science Institut':{'Price':500, 'Time':280, 'Yield':'New researches', 'incVal':0, 'yieldText':'New researches',
+                                    'req':None, 'decVal':0, 'reqText':'310 Energy', 'enrgDrain': 310,
+                                    'desc':'Researches conducted by this institute allow enhancements of productivity and habitation standards.', 
+                                    'img':'models/placeholder.jpg'},
+                
+                'Space Port': {     'Price':190, 'Time':150, 'Yield':'Space abilities', 'incVal':0, 'yieldText':'Space abilities',
+                                    'req':None, 'decVal':0, 'reqText':'560 Energy', 'enrgDrain': 560,
+                                    'desc':'Extends the interactions of a planet with its surrounding objects like asteroids or other celestial objects.', 
+                                    'img':'models/placeholder.jpg'}
             },
             'HAB':{
-                'Pod Settlement': {'Price':120, 'Time':30, 'Yield':'100 Nomads', 'incVal':100, 'req':None, 'enrgDrain': 120, 'desc':'Simple mining drill to extract cole rescources of a planet.', 'img':'models/coledrill.jpg'},
-                'Skyscraper City': {'Price':400, 'Time':230, 'Yield':'900 Nomads', 'incVal':900, 'req':'Autom. Hospital', 'enrgDrain': 290, 'desc':'Simple mining drill to extract cole rescources of a planet.', 'img':'models/coledrill.jpg'},
-                'Sol Resort': {'Price':625, 'Time':240, 'Yield':'Tourism ability', 'incVal':0, 'req':'Skyscraper City', 'enrgDrain': 360, 'desc':'Simple mining drill to extract cole rescources of a planet.', 'img':'models/coledrill.jpg'},
-                'Autom. Hospital': {'Price':350, 'Time':200, 'Yield':'TBD', 'incVal':0, 'req':None, 'enrgDrain': 230, 'desc':'Simple mining drill to extract cole rescources of a planet.', 'img':'models/coledrill.jpg'}
+                'Pod Settlement': { 'Price':120, 'Time':30, 'Yield':'Nomads', 'incVal':100, 'yieldText': '100 Nomads',
+                                    'req':None, 'decVal':0, 'reqText':'120 Energy', 'enrgDrain': 120, 
+                                    'desc':'Simple mining drill to extract cole rescources of a planet.', 
+                                    'img':'models/placeholder.jpg'},
+                
+                'Skyscraper City': {'Price':400, 'Time':230, 'Yield':'900 Nomads', 'incVal':900,  'yieldText': '900 Nomads',
+                                    'req':'Autom. Hospital', 'decVal':0, 'reqText':'Autom. Hospital, 290 Energy', 'enrgDrain': 290, 
+                                    'desc':'Simple mining drill to extract cole rescources of a planet.', 
+                                    'img':'models/placeholder.jpg'},
+                
+                'Sol Resort': {     'Price':625, 'Time':240, 'Yield':'Tourism ability', 'incVal':0, 'yieldText': 'Tourism ability',
+                                    'req':'Skyscraper City', 'decVal':0, 'reqText':'Skyscraper City, 360 Energy', 'enrgDrain': 360, 
+                                    'desc':'Simple mining drill to extract cole rescources of a planet.', 
+                                    'img':'models/placeholder.jpg'},
+                
+                'Autom. Hospital': {'Price':350, 'Time':200, 'Yield':'TBD', 'incVal':0, 'yieldText': 'TBD',
+                                    'req':None, 'decVal':0, 'reqText':'230 Energy', 'enrgDrain': 230, 
+                                    'desc':'Simple mining drill to extract cole rescources of a planet.', 
+                                    'img':'models/placeholder.jpg'}
             }
         }
 
