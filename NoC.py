@@ -337,7 +337,10 @@ class World(DirectObject):
         self.checkForConstructButton()
 
     def checkForConstructButton(self):
-        if self.ActiveBlueprint != None and self.ActiveBuildSlot != None:
+        planet=self.selectedObjectName
+        section=self.ActiveBuildSection
+
+        if self.ActiveBlueprint != None and self.ActiveBuildSlot != None and self.planetDB[planet]['slots'][section][self.ActiveBuildSlot['text']] == None:
             self.PlanetBuildConstructButton['state']='normal'
             self.PlanetBuildConstructButton['text_fg']=(1,1,1,1)
         else:
@@ -431,6 +434,7 @@ class World(DirectObject):
             incVal = self.buildingsDB[section][blueprint]['incVal']
             taskMgr.doMethodLater(5, self.produceGoodTask, blueprint + slot, extraArgs=[planet,good,incVal], appendTask=True)
 
+        self.checkForConstructButton()
         self.checkForSalvageButton()
 
     def salvageBuilding(self):
@@ -446,6 +450,8 @@ class World(DirectObject):
             self.checkForSalvageButton()
             
             taskMgr.remove(blueprint + slot)
+            self.checkForSalvageButton()
+            self.checkForConstructButton()
 
     def updateBuildingLables(self):
         planet = self.selectedObjectName
