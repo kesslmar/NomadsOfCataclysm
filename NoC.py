@@ -60,6 +60,7 @@ class World(DirectObject):
         self.ActiveBlueprint = None
         self.PopulationTimeDelta = 2
         self.taxFactor = 0.1
+        self.salvageFactor = 0.75
 
         self.planetDB = {} #All attributes and constructed buildings that a planet has
         self.buildingsDB = {} #Contains all buildable structures
@@ -209,6 +210,7 @@ class World(DirectObject):
             self.clearPlanetInfo()
             self.fillBuildPanel()
             self.checkForConstructButton()
+            self.checkForSalvageButton()
             self.updateBuildingLables()
             taskMgr.remove('infoCamTask')
             zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 0.9, pos[1]-scale * 3.3, 0), Vec3(0,0,0), camPos),
@@ -293,6 +295,8 @@ class World(DirectObject):
         if section != self.ActiveBuildSection:
             self.clearBuildPanel()
             self.clearSelectedBuildSlot()
+            self.checkForConstructButton()
+            self.checkForSalvageButton()
             self.ActiveBuildSection = section
             pos = self.PlanetBuildSlotContainer.getPos()
             swipeOutInterval = self.PlanetBuildSlotContainer.posInterval(0.1, Point3(pos[0],pos[1],pos[2]+2), pos)
@@ -316,6 +320,7 @@ class World(DirectObject):
         self.ActiveBuildSlot = newSlot
         newSlot['relief'] = 'sunken'
         self.checkForConstructButton()
+        self.checkForSalvageButton()
 
     def switchBuildBlueprint(self, blueprint, building):
         if self.ActiveBlueprint != None:
@@ -338,6 +343,17 @@ class World(DirectObject):
         else:
             self.PlanetBuildConstructButton['state']='disabled'
             self.PlanetBuildConstructButton['text_fg']=(0.5,0.5,0.5,1)
+        
+    def checkForSalvageButton(self):
+        planet=self.selectedObjectName
+        section=self.ActiveBuildSection
+
+        if self.ActiveBuildSlot != None and self.planetDB[planet]['slots'][section][self.ActiveBuildSlot['text']] != None:
+            self.PlanetBuildSalvageButton['state']='normal'
+            self.PlanetBuildSalvageButton['text_fg']=(1,1,1,1)
+        else:
+            self.PlanetBuildSalvageButton['state']='disabled'
+            self.PlanetBuildSalvageButton['text_fg']=(0.5,0.5,0.5,1)
 
     def fillBuildPanel(self):
         i = 0
@@ -413,7 +429,23 @@ class World(DirectObject):
         if addTask:
             good = self.buildingsDB[section][blueprint]['Yield']
             incVal = self.buildingsDB[section][blueprint]['incVal']
-            taskMgr.doMethodLater(5, self.produceGoodTask, 'produceGoodTask', extraArgs=[planet,good,incVal], appendTask=True)
+            taskMgr.doMethodLater(5, self.produceGoodTask, blueprint + slot, extraArgs=[planet,good,incVal], appendTask=True)
+
+        self.checkForSalvageButton()
+
+    def salvageBuilding(self):
+            planet = self.selectedObjectName
+            slot = self.ActiveBuildSlot['text']
+            section = self.ActiveBuildSection
+            blueprint = self.planetDB[planet]['slots'][section][slot]
+            price = self.buildingsDB[section][blueprint]['Price']
+            
+            self.planetDB[planet]['slots'][section][slot] = None
+            self.money += round(price * self.salvageFactor)
+            self.updateBuildingLables()
+            self.checkForSalvageButton()
+            
+            taskMgr.remove(blueprint + slot)
 
     def updateBuildingLables(self):
         planet = self.selectedObjectName
@@ -558,6 +590,11 @@ class World(DirectObject):
             pos=(-0.122,0,-0.37), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
             command=self.constructBuilding, parent=self.PlanetBuildDescriptionField, state='disabled')
+
+        self.PlanetBuildSalvageButton  = DirectButton(text='<- Salvage', 
+            pos=(-0.126,0,-0.52), pad=(0.085, 0.013), borderWidth=(0.01,0.01),
+            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+            command=self.salvageBuilding, parent=self.PlanetBuildDescriptionField, state='disabled')
 
         self.PlanetBuildCloseButton = DirectButton(text='Back', 
             pos=(-0.26,0,0.7), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
