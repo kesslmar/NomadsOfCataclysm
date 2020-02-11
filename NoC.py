@@ -44,6 +44,7 @@ class World(DirectObject):
         self.yearCounter = 0
         self.dayCounter = 0
         self.money = 2000
+        self.systemPopulation = 0
         self.orbitscale = 10
         self.sizescale = 0.6
         self.camSpeed = 10
@@ -158,7 +159,10 @@ class World(DirectObject):
         return task.cont
 
     def redrawHeadGUI(self, task):
-        self.HeadGUI.text = 'Year '+str(self.yearCounter)+', Day '+str(self.dayCounter) + ', Money: ' +str(self.money)
+        self.HeadGUIText['text'] = ('Year '+str(self.yearCounter)+', '
+                                    'Day '+str(self.dayCounter) + ', '
+                                    'Money: ' +str(self.money) + ', '
+                                    'Population: ' +str(self.systemPopulation))
         return task.cont
 
     def handleMouseClick(self):
@@ -174,6 +178,7 @@ class World(DirectObject):
 
     def togglePlanetInfoMode(self, mode=False, obj=None):
         if mode:
+            self.MapViewPanel.hide()
             self.PlanetInfoModeOn = True
             self.selectedObject = obj
             self.selectedObjectName = obj.getNetTag('name')
@@ -193,7 +198,7 @@ class World(DirectObject):
             self.PlanetInfoModeOn = False
             taskMgr.remove('infocamTask')
             camPos = camera.getPos()
-            zoomInterval = camera.posInterval(0.3, Point3(0, -30, 30), camPos)
+            zoomInterval = Sequence(camera.posInterval(0.3, Point3(0, -30, 30), camPos), Func(self.MapViewPanel.show))
             zoomInterval.start()
             taskMgr.remove('updatePlanetInfoTask')
             self.PlanetInfoPanel.hide()
@@ -436,7 +441,8 @@ class World(DirectObject):
         enrgUsg = self.planetDB[planet]['enrgUsg']
 
         getsBuild = False
-        addTask = False
+        addPRODTask = False
+        addRESCTask = False
 
         if self.money >= price:
             if section == 'ENRG':
@@ -447,13 +453,13 @@ class World(DirectObject):
                     if section == 'RESC':
                         if self.buildingsDB[section][blueprint]['req'] in self.planetDB[planet]['resc']:
                             getsBuild = True
-                            addTask = True
+                            addRESCTask = True
                             self.planetDB[planet]['enrgUsg']+=self.buildingsDB[section][blueprint]['enrgDrain']
                         else:
                             self.createProblemDialog('Needed Rescource is not available')
                     elif section == 'PROD':
                         getsBuild = True
-                        addTask = True
+                        addPRODTask = True
                         self.planetDB[planet]['enrgUsg']+=self.buildingsDB[section][blueprint]['enrgDrain']
                     elif section == 'HAB':
                         getsBuild = True
@@ -472,10 +478,18 @@ class World(DirectObject):
             self.money -= price
             self.updateBuildingLables()
 
-        if addTask:
-            good = self.buildingsDB[section][blueprint]['Yield']
+        if addRESCTask:
+            good = self.buildingsDB[section][blueprint]['yield']
             incVal = self.buildingsDB[section][blueprint]['incVal']
-            taskMgr.doMethodLater(5, self.produceGoodTask, blueprint + slot, extraArgs=[planet,good,incVal], appendTask=True)
+            taskMgr.doMethodLater(5, self.extractRescourceTask, blueprint + slot, extraArgs=[planet,good,incVal], appendTask=True)
+
+        if addPRODTask:
+            inGood = self.buildingsDB[section][blueprint]['req']
+            outGood = self.buildingsDB[section][blueprint]['yield']
+            incVal = self.buildingsDB[section][blueprint]['incVal']
+            decVal = self.buildingsDB[section][blueprint]['decVal']
+            taskMgr.doMethodLater(5, self.processGoodTask, blueprint + slot, extraArgs=[planet,inGood, outGood, incVal, decVal], appendTask=True)
+            
 
         self.checkForConstructButton()
         self.checkForSalvageButton()
@@ -552,7 +566,7 @@ class World(DirectObject):
         self.ProblemDialog.cleanup()
 
 
-    def produceGoodTask(self, celObj, good, incVal, task):
+    def extractRescourceTask(self, celObj, good, incVal, task):
         if not ('goods' in self.planetDB[celObj]):
             self.planetDB[celObj].update({'goods':{}})
         if not (good in self.planetDB[celObj]['goods']):
@@ -561,6 +575,20 @@ class World(DirectObject):
         self.planetDB[celObj]['goods'][good]+=incVal
         
         return task.again
+
+    def processGoodTask(self, celObj, inGood, outGood, incVal, decVal, task):
+        if not ('goods' in self.planetDB[celObj]):
+            self.planetDB[celObj].update({'goods':{}})
+        if not (inGood in self.planetDB[celObj]['goods']) or self.planetDB[celObj]['goods'][inGood] < decVal:
+            print('Good not available')
+        else:
+            self.planetDB[celObj]['goods'][inGood]-=decVal
+            if not (outGood in self.planetDB[celObj]['goods']):
+                self.planetDB[celObj]['goods'].update({outGood:0})
+            self.planetDB[celObj]['goods'][outGood]+=incVal
+        
+        return task.again
+
 
     def populatePlanetTask(self, planet, task):
         if self.planetDB[planet]['habCap'] > self.planetDB[planet]['pop']:
@@ -573,6 +601,7 @@ class World(DirectObject):
             if data['type'] != 'Star':
                 wholePop += data['pop']
         self.money += round(wholePop * self.taxFactor)
+        self.systemPopulation = wholePop
         return task.again
 
 
@@ -583,9 +612,29 @@ class World(DirectObject):
     def setUpGui(self):
         # Constant visible gui elements
         #------------------------------
-        self.HeadGUI = OnscreenText(text='Year '+str(self.yearCounter)+', Day '+str(self.dayCounter) + ', Money: ' +str(self.money), 
-            pos=(0.1, -0.1), fg=(1, 1, 1, 1),
-            parent=base.a2dTopLeft,align=TextNode.ALeft, scale=.08)
+        self.HeadGUIPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0.9), frameSize=(0, 1.55, -0.13, 0), pos=(-1.8, 0, 1))
+        
+        self.HeadGUIText = DirectLabel(text=('Year '+str(self.yearCounter)+', '
+                                             'Day '+str(self.dayCounter) + ', '
+                                             'Money: ' +str(self.money) + ', '
+                                             'Population: ' +str(self.systemPopulation)), 
+            pos=(0.1, 0, -0.085), text_fg=(1, 1, 1, 1), frameColor=(0,0,0,0),
+            parent=self.HeadGUIPanel, text_align=TextNode.ALeft, text_scale=.07)
+
+        self.MapViewPanel = DirectFrame(
+            frameColor=(0.2, 0.2, 0.22, 0.9),
+            frameSize=(0, 0.5, -1.2, 0),
+            pos=(-1.75, 0, 0.6))
+
+        self.MapViewProbeButton = DirectButton(text='Probe', 
+            pos=(0.238,0,-0.1), pad=(0.085, 0.02), borderWidth=(0.01,0.01),
+            text_scale=0.07, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+            parent=self.MapViewPanel)
+
+        self.MapViewColoniseButton = DirectButton(text='Colonize', 
+            pos=(0.238,0,-0.25), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
+            text_scale=0.07, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+            parent=self.MapViewPanel)
 
         # All static gui elements for the planet info screen
         #---------------------------------------------------
@@ -618,8 +667,7 @@ class World(DirectObject):
         self.PlanetInfoCloseButton = DirectButton(text='Close', 
             pos=(-0.745,0,-0.92), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.togglePlanetInfoMode, extraArgs=[False])
-        self.PlanetInfoCloseButton.reparentTo(self.PlanetInfoPanel)
+            command=self.togglePlanetInfoMode, extraArgs=[False], parent=self.PlanetInfoPanel)
 
         self.PlanetInfoBuildButton = DirectButton(text='Build', 
             pos=(1.8,0,-0.58), pad=(0.06, 0.05), borderWidth=(0.01,0.01),
@@ -931,106 +979,106 @@ class World(DirectObject):
     def fillBuildingsDB(self):
         self.buildingsDB = {
             'RESC':{
-                'Coal Drill': {     'Price':300, 'Time':60, 'Yield':'Coal sacks', 'incVal':10, 'yieldText':'10 Coal sacks per tick', 
+                'Coal Drill': {     'Price':300, 'Time':60, 'yield':'Coal sacks', 'incVal':10, 'yieldText':'10 Coal sacks per tick', 
                                     'req':'Coal', 'decVal':0, 'reqText':'Coal, 100 Energy', 'enrgDrain': 100, 
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
                                     'img':'models/coaldrill.jpg'},
 
-                'Iron Mine': {      'Price':450, 'Time':100, 'Yield':'Iron ingots', 'incVal':15, 'yieldText':'15 Iron ingots per tick',
+                'Iron Mine': {      'Price':450, 'Time':100, 'yield':'Iron ingots', 'incVal':15, 'yieldText':'15 Iron ingots per tick',
                                     'req':'Iron', 'decVal':0, 'reqText':'Iron, 150 Energy', 'enrgDrain': 150, 
                                     'desc':'Sophisticated mine to faciliate iron, which is used for further Production.', 
                                     'img':'models/ironmine.jpg'},
 
-                'Uranium Site': {   'Price':600, 'Time':300, 'Yield':'Uranium containers', 'incVal':5, 'yieldText':'5 Uranium containters per tick',
+                'Uranium Site': {   'Price':600, 'Time':300, 'yield':'Uranium containers', 'incVal':5, 'yieldText':'5 Uranium containters per tick',
                                     'req':'Uranium', 'decVal':0, 'reqText':'Uranium, 500 Energy', 'enrgDrain': 500, 
                                     'desc':'High tech facility to gather raw uranium. This has then to be enriched for further use.', 
                                     'img':'models/uraniumsite.jpg'},
 
-                'Organic Farm': {   'Price':250, 'Time':60, 'Yield':'Vegetable crates', 'incVal':20, 'yieldText':'20 Vegetable crates per tick',
+                'Organic Farm': {   'Price':250, 'Time':60, 'yield':'Vegetable crates', 'incVal':20, 'yieldText':'20 Vegetable crates per tick',
                                     'req':'Athmosphere', 'decVal':0, 'reqText':'Athmosphere, 200 Energy', 'enrgDrain': 200, 
                                     'desc':'Basic vegetable farm to satisfy nutrition needs.', 
                                     'img':'models/placeholder.jpg'}
             },
             'PROD':{
-                'Weapon Forge': {   'Price':500, 'Time':120, 'Yield':'Weapons', 'incVal':10, 'yieldText':'10 Weapons per tick',
+                'Weapon Forge': {   'Price':500, 'Time':120, 'yield':'Weapons', 'incVal':10, 'yieldText':'10 Weapons per tick',
                                     'req':'Iron ingots', 'decVal':10, 'reqText':'10 Iron ingots per tick, 250 Energy', 'enrgDrain': 250, 
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
                                     'img':'models/placeholder.jpg'},
 
-                'Ship Yard': {      'Price':550, 'Time':130, 'Yield':'Ships', 'incVal':10, 'yieldText':'10 Ships per tick',
+                'Ship Yard': {      'Price':550, 'Time':130, 'yield':'Ships', 'incVal':10, 'yieldText':'10 Ships per tick',
                                     'req':'Iron ingots', 'decVal':30, 'reqText':'30 Iron ingots per tick, 250 Energy', 'enrgDrain': 300, 
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
                                     'img':'models/placeholder.jpg'},
 
-                'Uranium Enricher':{'Price':750, 'Time':400, 'Yield':'Uranium rods', 'incVal':10, 'yieldText':'10 Uranium rods per tick',
+                'Uranium Enricher':{'Price':750, 'Time':400, 'yield':'Uranium rods', 'incVal':10, 'yieldText':'10 Uranium rods per tick',
                                     'req':'Uranium containers', 'decVal':5, 'reqText': '5 Uranium container per tick, 650 Energy', 'enrgDrain': 650, 
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
                                     'img':'models/placeholder.jpg'}
             },
             'ENRG':{
-                'Wind Turbine': {   'Price':150, 'Time':30, 'Yield':'Energy', 'incVal':150, 'yieldText':'150 Energy',
+                'Wind Turbine': {   'Price':150, 'Time':30, 'yield':'Energy', 'incVal':150, 'yieldText':'150 Energy',
                                     'req':'Wind', 'decVal':0, 'reqText':'Wind', 'enrgDrain': 0,
                                     'desc':'First instance of energy supply. Needs at least level 1 Wind activities.', 
                                     'img':'models/windgenerator.jpg'},
 
-                'Coal Generator': { 'Price':300, 'Time':50, 'Yield':'Energy', 'incVal':500, 'yieldText':'500 Energy', 
+                'Coal Generator': { 'Price':300, 'Time':50, 'yield':'Energy', 'incVal':500, 'yieldText':'500 Energy', 
                                     'req':'Coal sacks', 'decVal':5, 'reqText':'5 Coal sacks per tick', 'enrgDrain': 0,
                                     'desc':'Delivers bigger and more reliable energy output. Polution might be a Prolbem though.', 
                                     'img':'models/coalplant.jpg'},
 
-                'M.W. Transmitter':{'Price':650, 'Time':250, 'Yield':'Energy', 'incVal':1000, 'yieldText':'1000 Energy', 
+                'M.W. Transmitter':{'Price':650, 'Time':250, 'yield':'Energy', 'incVal':1000, 'yieldText':'1000 Energy', 
                                     'req':'Micro waves', 'decVal':0, 'reqText':'Micro wave connection to other planet', 'enrgDrain': 0,
                                     'desc':'Enables multiple Planents to send energy supply to each other.', 
                                     'img':'models/mw_transmitter.jpg'},
 
-                'Nuclear Reactor': {'Price':850, 'Time':350, 'Yield':'Energy', 'incVal':5000, 'yieldText':'5000 Energy', 
+                'Nuclear Reactor': {'Price':850, 'Time':350, 'yield':'Energy', 'incVal':5000, 'yieldText':'5000 Energy', 
                                     'req':'Uranium rods', 'decVal':7, 'reqText':'7 Uranium rods per tick', 'enrgDrain': 0,
                                     'desc':'Highest energy source that can be constructed planet site.', 
                                     'img':'models/powerplant.jpg'},
 
-                'Dyson Sphere': {   'Price':3200, 'Time':600, 'Yield':'Energy', 'incVal':50000, 'yieldText':'50000 Energy', 
+                'Dyson Sphere': {   'Price':3200, 'Time':600, 'yield':'Energy', 'incVal':50000, 'yieldText':'50000 Energy', 
                                     'req':'Sun', 'decVal':0, 'reqText':'Sun as center of construction',
                                     'desc':'Experimental construction, which others refer to as the newest wonder of the known worlds.',  'enrgDrain': 0,
                                     'img':'models/dysonsphere.jpg'}
             },
             'DEV':{
-                'Trading Center': { 'Price':575, 'Time':300, 'Yield':'Trading ability', 'incVal':0, 'yieldText':'Trading ability',
+                'Trading Center': { 'Price':575, 'Time':300, 'yield':'Trading ability', 'incVal':0, 'yieldText':'Trading ability',
                                     'req':None, 'decVal':0, 'reqText':'450 Energy', 'enrgDrain': 450,
                                     'desc':'Allows to set trading routes and to trade with the open galaxy market. Only one needed per solar system.', 
                                     'img':'models/placeholder.jpg'},
                 
-                'Milkyway Uni.': {  'Price':350, 'Time':200, 'Yield':'Society improvements', 'incVal':0, 'yieldText':'Society improvements',
+                'Milkyway Uni.': {  'Price':350, 'Time':200, 'yield':'Society improvements', 'incVal':0, 'yieldText':'Society improvements',
                                     'req':None, 'decVal':0, 'reqText':'240 Energy', 'enrgDrain': 240,
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
                                     'img':'models/placeholder.jpg'},
                 
-                'Science Institut':{'Price':500, 'Time':280, 'Yield':'New researches', 'incVal':0, 'yieldText':'New researches',
+                'Science Institut':{'Price':500, 'Time':280, 'yield':'New researches', 'incVal':0, 'yieldText':'New researches',
                                     'req':None, 'decVal':0, 'reqText':'310 Energy', 'enrgDrain': 310,
                                     'desc':'Researches conducted by this institute allow enhancements of productivity and habitation standards.', 
                                     'img':'models/placeholder.jpg'},
                 
-                'Space Port': {     'Price':190, 'Time':150, 'Yield':'Space abilities', 'incVal':0, 'yieldText':'Space abilities',
+                'Space Port': {     'Price':190, 'Time':150, 'yield':'Space abilities', 'incVal':0, 'yieldText':'Space abilities',
                                     'req':None, 'decVal':0, 'reqText':'560 Energy', 'enrgDrain': 560,
                                     'desc':'Extends the interactions of a planet with its surrounding objects like asteroids or other celestial objects.', 
                                     'img':'models/placeholder.jpg'}
             },
             'HAB':{
-                'Pod Settlement': { 'Price':120, 'Time':30, 'Yield':'Nomads', 'incVal':100, 'yieldText': '100 Nomads',
+                'Pod Settlement': { 'Price':120, 'Time':30, 'yield':'Nomads', 'incVal':100, 'yieldText': '100 Nomads',
                                     'req':None, 'decVal':0, 'reqText':'120 Energy', 'enrgDrain': 120, 
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
                                     'img':'models/placeholder.jpg'},
                 
-                'Skyscraper City': {'Price':400, 'Time':230, 'Yield':'900 Nomads', 'incVal':900,  'yieldText': '900 Nomads',
+                'Skyscraper City': {'Price':400, 'Time':230, 'yield':'900 Nomads', 'incVal':900,  'yieldText': '900 Nomads',
                                     'req':'Autom. Hospital', 'decVal':0, 'reqText':'Autom. Hospital, 290 Energy', 'enrgDrain': 290, 
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
                                     'img':'models/placeholder.jpg'},
                 
-                'Sol Resort': {     'Price':625, 'Time':240, 'Yield':'Tourism ability', 'incVal':0, 'yieldText': 'Tourism ability',
+                'Sol Resort': {     'Price':625, 'Time':240, 'yield':'Tourism ability', 'incVal':0, 'yieldText': 'Tourism ability',
                                     'req':'Skyscraper City', 'decVal':0, 'reqText':'Skyscraper City, 360 Energy', 'enrgDrain': 360, 
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
                                     'img':'models/placeholder.jpg'},
                 
-                'Autom. Hospital': {'Price':350, 'Time':200, 'Yield':'TBD', 'incVal':0, 'yieldText': 'TBD',
+                'Autom. Hospital': {'Price':350, 'Time':200, 'yield':'TBD', 'incVal':0, 'yieldText': 'TBD',
                                     'req':None, 'decVal':0, 'reqText':'230 Energy', 'enrgDrain': 230, 
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
                                     'img':'models/placeholder.jpg'}
