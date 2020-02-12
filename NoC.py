@@ -56,6 +56,7 @@ class World(DirectObject):
         self.followObjectScale = 1
         self.PlanetInfoModeOn = False
         self.PlanetBuildModeOn = False
+        self.PlanetBuildSlotButtons = []
         self.ActiveBuildSection  = 'RESC' #Is either RESC, PROD, ENRG, DEV or HAB
         self.ActiveBuildSlot = None
         self.ActiveBlueprint = None
@@ -216,7 +217,7 @@ class World(DirectObject):
             self.fillBuildPanel()
             self.checkForConstructButton()
             self.checkForSalvageButton()
-            self.updateBuildingLables()
+            self.updateBuildSlotButtons()
             taskMgr.remove('infoCamTask')
             zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 0.9, pos[1]-scale * 3.3, 0), Vec3(0,0,0), camPos),
                                     Func(self.PlanetBuildPanel.show))
@@ -227,7 +228,7 @@ class World(DirectObject):
             self.PlanetBuildPanel.hide()
             self.clearSelectedBuildSlot()
             self.clearBuildPanel()
-            self.updateBuildingLables()
+            self.updateBuildSlotButtons()
             self.fillPlanetInfo()
             taskMgr.remove('quickinfoTask')
             taskMgr.remove('buildcamTask')
@@ -319,20 +320,12 @@ class World(DirectObject):
             self.checkForConstructButton()
             self.checkForSalvageButton()
             self.ActiveBuildSection = section
+
             pos = self.PlanetBuildSlotContainer.getPos()
             swipeOutInterval = self.PlanetBuildSlotContainer.posInterval(0.2, Point3(pos[0],pos[1],pos[2]+2), pos)
-
-            def rename():
-                self.PlanetBuildSlot1['text'] = section[0] + '1'
-                self.PlanetBuildSlot2['text'] = section[0] + '2'
-                self.PlanetBuildSlot3['text'] = section[0] + '3'
-                self.PlanetBuildSlot4['text'] = section[0] + '4'
-                self.PlanetBuildSlot5['text'] = section[0] + '5'
-                self.updateBuildingLables()
-
             swipeInInterval = self.PlanetBuildSlotContainer.posInterval(0.2, pos, Point3(pos[0],pos[1],pos[2]-2))
             
-            mySeq = Sequence(swipeOutInterval, Func(rename), swipeInInterval)      
+            mySeq = Sequence(swipeOutInterval, Func(self.updateBuildSlotButtons), swipeInInterval)      
             mySeq.start()
             self.fillBuildPanel()
 
@@ -443,11 +436,14 @@ class World(DirectObject):
         getsBuild = False
         addPRODTask = False
         addRESCTask = False
+        addConsumeTask = False
 
         if self.money >= price:
             if section == 'ENRG':
                 getsBuild = True
                 self.planetDB[planet]['enrgCap']+=self.buildingsDB[section][blueprint]['incVal']
+                if blueprint == 'Coal Generator' or blueprint == 'Nuclear Reactor':
+                    addConsumeTask = True
             else:
                 if enrgUsg + self.buildingsDB[section][blueprint]['enrgDrain'] <= enrgCap:
                     if section == 'RESC':
@@ -474,9 +470,9 @@ class World(DirectObject):
             self.createProblemDialog('Not enough Money')
         
         if getsBuild:
-            self.planetDB[planet]['slots'][section][slot] = blueprint
+            self.planetDB[planet]['slots'][section][slot] = {'name':blueprint, 'gotProblem':False, 'problemText':'', 'workers':0, 'output':0}
             self.money -= price
-            self.updateBuildingLables()
+            self.updateBuildSlotButtons()
 
         if addRESCTask:
             good = self.buildingsDB[section][blueprint]['yield']
@@ -488,8 +484,12 @@ class World(DirectObject):
             outGood = self.buildingsDB[section][blueprint]['yield']
             incVal = self.buildingsDB[section][blueprint]['incVal']
             decVal = self.buildingsDB[section][blueprint]['decVal']
-            taskMgr.doMethodLater(5, self.processGoodTask, blueprint + slot, extraArgs=[planet,inGood, outGood, incVal, decVal], appendTask=True)
+            taskMgr.doMethodLater(5, self.processGoodTask, blueprint + slot, extraArgs=[planet, section, slot, inGood, outGood, incVal, decVal], appendTask=True)
             
+        if addConsumeTask:
+            good = self.buildingsDB[section][blueprint]['req']
+            decVal = self.buildingsDB[section][blueprint]['decVal']
+            taskMgr.doMethodLater(5, self.consumeGoodTask, blueprint + slot, extraArgs=[planet, section, slot, good, decVal], appendTask=True)
 
         self.checkForConstructButton()
         self.checkForSalvageButton()
@@ -498,7 +498,7 @@ class World(DirectObject):
             planet = self.selectedObjectName
             slot = self.ActiveBuildSlot['text']
             section = self.ActiveBuildSection
-            blueprint = self.planetDB[planet]['slots'][section][slot]
+            blueprint = self.planetDB[planet]['slots'][section][slot]['name']
             price = self.buildingsDB[section][blueprint]['Price']
             incVal = self.buildingsDB[section][blueprint]['incVal']
             enrgDrain = self.buildingsDB[section][blueprint]['enrgDrain']
@@ -518,32 +518,48 @@ class World(DirectObject):
                 self.planetDB[planet]['slots'][section][slot] = None
                 self.planetDB[planet]['enrgUsg'] -= enrgDrain
                 self.money += round(price * self.salvageFactor)
-                self.updateBuildingLables()
+                self.updateBuildSlotButtons()
                 
                 taskMgr.remove(blueprint + slot)
                 self.checkForSalvageButton()
                 self.checkForConstructButton()
 
-    def updateBuildingLables(self):
+    def updateBuildSlotButtons(self):
         planet = self.selectedObjectName
         section = self.ActiveBuildSection
         data = self.planetDB[planet]['slots'][section]
         fl = section[0]
 
-        if data[fl+'1'] != None: self.PlanetBuildSlot1Lable['text'] = data[fl+'1']
+        if data[fl+'1'] != None: 
+            self.PlanetBuildSlot1Lable['text'] = data[fl+'1']['name']
+            if data[fl+'1']['gotProblem']: self.PlanetBuildSlot1Lable['text']+= ' \n/!\PROBLEM/!\\'
         else: self.PlanetBuildSlot1Lable['text'] = ''   
+        self.PlanetBuildSlot1['text'] = section[0] + '1'
 
-        if data[fl+'2'] != None: self.PlanetBuildSlot2Lable['text'] = data[fl+'2']
+        if data[fl+'2'] != None: 
+            self.PlanetBuildSlot2Lable['text'] = data[fl+'2']['name']
+            if data[fl+'2']['gotProblem']: self.PlanetBuildSlot2Lable['text']+= ' \n/!\PROBLEM/!\\'
         else: self.PlanetBuildSlot2Lable['text'] = '' 
+        self.PlanetBuildSlot2['text'] = section[0] + '2'
 
-        if data[fl+'3'] != None: self.PlanetBuildSlot3Lable['text'] = data[fl+'3']
+        if data[fl+'3'] != None: 
+            self.PlanetBuildSlot3Lable['text'] = data[fl+'3']['name']
+            if data[fl+'3']['gotProblem']: self.PlanetBuildSlot3Lable['text']+= ' \n/!\PROBLEM/!\\'
         else: self.PlanetBuildSlot3Lable['text'] = '' 
+        self.PlanetBuildSlot3['text'] = section[0] + '3'
 
-        if data[fl+'4'] != None: self.PlanetBuildSlot4Lable['text'] = data[fl+'4']
+        if data[fl+'4'] != None: 
+            self.PlanetBuildSlot4Lable['text'] = data[fl+'4']['name']
+            if data[fl+'4']['gotProblem']: self.PlanetBuildSlot4Lable['text']+= ' \n/!\PROBLEM/!\\'
         else: self.PlanetBuildSlot4Lable['text'] = '' 
+        self.PlanetBuildSlot4['text'] = section[0] + '4'
 
-        if data[fl+'5'] != None: self.PlanetBuildSlot5Lable['text'] = data[fl+'5']
+        if data[fl+'5'] != None: 
+            self.PlanetBuildSlot5Lable['text'] = data[fl+'5']['name']
+            if data[fl+'5']['gotProblem']: self.PlanetBuildSlot5Lable['text']+= ' \n/!\PROBLEM/!\\'
         else: self.PlanetBuildSlot5Lable['text'] = '' 
+        self.PlanetBuildSlot5['text'] = section[0] + '5'
+
 
     def clearBuildPanel(self):
         for element in self.PlanetBuildPanelContent:
@@ -576,17 +592,39 @@ class World(DirectObject):
         
         return task.again
 
-    def processGoodTask(self, celObj, inGood, outGood, incVal, decVal, task):
+    def processGoodTask(self, celObj, section, slot, inGood, outGood, incVal, decVal, task):
         if not ('goods' in self.planetDB[celObj]):
             self.planetDB[celObj].update({'goods':{}})
+
         if not (inGood in self.planetDB[celObj]['goods']) or self.planetDB[celObj]['goods'][inGood] < decVal:
-            print('Good not available')
+            self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
+            self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue production'.format(inGood)
+            self.updateBuildSlotButtons()
         else:
+            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
+                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
+                self.updateBuildSlotButtons()
             self.planetDB[celObj]['goods'][inGood]-=decVal
             if not (outGood in self.planetDB[celObj]['goods']):
                 self.planetDB[celObj]['goods'].update({outGood:0})
             self.planetDB[celObj]['goods'][outGood]+=incVal
         
+        return task.again
+
+    def consumeGoodTask(self, celObj, section, slot, good, decVal, task):
+        if not ('goods' in self.planetDB[celObj]):
+            self.planetDB[celObj].update({'goods':{}})
+
+        if not (good in self.planetDB[celObj]['goods']) or self.planetDB[celObj]['goods'][good] < decVal:
+            self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
+            self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue service'.format(good)
+            self.updateBuildSlotButtons()
+        else:
+            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
+                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
+                self.updateBuildSlotButtons()
+            self.planetDB[celObj]['goods'][good]-=decVal
+
         return task.again
 
 
@@ -712,11 +750,6 @@ class World(DirectObject):
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
             command=self.togglePlanetBuildMode, extraArgs=[False], parent=self.PlanetBuildPanel)
 
-        #self.PlanetBuildSectionDropdown = DirectOptionMenu(text="options", 
-        #    pos=(-0.1,0,0.68),pad=(1.7, 1), borderWidth=(0.06,0.06),
-        #    scale=0.15, text_scale=0.5, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-        #    items=["RESC", "PROD", "ENRG", "DEV", "HAB"], command=self.switchBuildSection, 
-        #    initialitem=0, highlightColor=(0.65, 0.65, 0.65, 1), parent=self.PlanetBuildPanel)
 
         self.PlanetBuildRESCButton = DirectButton(text='Rescources', 
             pos=(0.4,0,0.75), pad=(0.03, 0.02), borderWidth=(0.01,0.01),
@@ -898,7 +931,7 @@ class World(DirectObject):
             'type':'Planet',    'athm':True,    'wind':1, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':100,         'probed':True, 'colonised':True,
-            'resc':{'Iron':'Normal', 'Coal':'Common', 'Gemstone':'Rare'} }})
+            'resc':{'Iron':'Normal', 'Coal':'Common', 'Uranium':'Rare'} }})
         self.earth = loader.loadModel("models/planet_sphere")
         self.earth_tex = loader.loadTexture("models/earth_1k_tex.jpg")
         self.earth.setTexture(self.earth_tex, 1)
@@ -1084,6 +1117,9 @@ class World(DirectObject):
                                     'img':'models/placeholder.jpg'}
             }
         }
+
+    
+        
 
 
     #****************************************
