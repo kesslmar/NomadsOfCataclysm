@@ -506,7 +506,8 @@ class World(DirectObject):
         if addConsumeTask:
             good = self.buildingsDB[section][blueprint]['req']
             decVal = self.buildingsDB[section][blueprint]['decVal']
-            taskMgr.doMethodLater(5, self.consumeGoodTask, blueprint + slot, extraArgs=[planet, section, slot, good, decVal], appendTask=True)
+            incVal = self.buildingsDB[section][blueprint]['incVal']
+            taskMgr.doMethodLater(5, self.consumeGoodTask, blueprint + slot, extraArgs=[planet, section, slot, good, decVal, incVal], appendTask=True)
 
         self.checkForConstructButton()
         self.checkForSalvageButton()
@@ -638,18 +639,21 @@ class World(DirectObject):
         
         return task.again
 
-    def consumeGoodTask(self, celObj, section, slot, good, decVal, task):
+    def consumeGoodTask(self, celObj, section, slot, good, decVal, incVal, task):
         if not ('goods' in self.planetDB[celObj]):
             self.planetDB[celObj].update({'goods':{}})
 
         if not (good in self.planetDB[celObj]['goods']) or self.planetDB[celObj]['goods'][good] < decVal:
-            self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-            self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue service'.format(good)
-            self.updateBuildSlotButtons()
+            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
+                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
+                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue service'.format(good)
+                self.updateBuildSlotButtons()
+                if section == 'ENRG': self.planetDB[celObj]['enrgCap'] -= incVal
         else:
             if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
                 self.updateBuildSlotButtons()
+                if section == 'ENRG': self.planetDB[celObj]['enrgCap'] -= incVal
             self.planetDB[celObj]['goods'][good]-=decVal
 
         return task.again
@@ -684,6 +688,16 @@ class World(DirectObject):
         time = round(dist * 15)
         cost = 500 + round(dist * 67)
         missionText = "Probe misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
+        self.createProblemDialog(missionText)
+
+    def showColoniseMission(self):
+        planet1 = self.capitalPlanet
+        planet2 = self.selectedObject
+        name = self.selectedObjectName
+        dist = round(self.calcDistanceBetweenPlanets(planet1, planet2),3)
+        time = round(dist * 30)
+        cost = 3900 + round(dist * 123)
+        missionText = "Colonise misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
         self.createProblemDialog(missionText)
 
     #****************************************
