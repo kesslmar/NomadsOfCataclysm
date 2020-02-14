@@ -494,7 +494,7 @@ class World(DirectObject):
         if addRESCTask:
             good = self.buildingsDB[section][blueprint]['yield']
             incVal = self.buildingsDB[section][blueprint]['incVal']
-            taskMgr.doMethodLater(5, self.extractRescourceTask, blueprint + slot, extraArgs=[planet,good,incVal], appendTask=True)
+            taskMgr.doMethodLater(5, self.extractRescourceTask, blueprint + slot, extraArgs=[planet,section, slot, good,incVal], appendTask=True)
 
         if addPRODTask:
             inGood = self.buildingsDB[section][blueprint]['req']
@@ -610,13 +610,25 @@ class World(DirectObject):
     # Diverse collection of gameplay functions and tasks
     #---------------------------------------------------
 
-    def extractRescourceTask(self, celObj, good, incVal, task):
+    def extractRescourceTask(self, celObj, section, slot, good, incVal, task):
+        section = 'RESC'
+        
         if not ('goods' in self.planetDB[celObj]):
             self.planetDB[celObj].update({'goods':{}})
         if not (good in self.planetDB[celObj]['goods']):
             self.planetDB[celObj]['goods'].update({good:0})
         
-        self.planetDB[celObj]['goods'][good]+=incVal
+        if self.planetDB[celObj]['enrgCap'] < self.planetDB[celObj]['enrgUsg']:
+            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
+                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
+                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Not enough energy to continue extraction'
+                self.updateBuildSlotButtons()
+        else:
+            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
+                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
+                self.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
+                self.updateBuildSlotButtons()
+            self.planetDB[celObj]['goods'][good]+=incVal
         
         return task.again
 
@@ -625,13 +637,21 @@ class World(DirectObject):
             self.planetDB[celObj].update({'goods':{}})
 
         if not (inGood in self.planetDB[celObj]['goods']) or self.planetDB[celObj]['goods'][inGood] < decVal:
-            self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-            self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue production'.format(inGood)
-            self.updateBuildSlotButtons()
+            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
+                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
+                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue production'.format(inGood)
+                self.updateBuildSlotButtons()
+        elif self.planetDB[celObj]['enrgCap'] < self.planetDB[celObj]['enrgUsg']:
+            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
+                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
+                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Not enough energy to continue production'
+                self.updateBuildSlotButtons()
         else:
             if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
+                self.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
                 self.updateBuildSlotButtons()
+                
             self.planetDB[celObj]['goods'][inGood]-=decVal
             if not (outGood in self.planetDB[celObj]['goods']):
                 self.planetDB[celObj]['goods'].update({outGood:0})
@@ -653,7 +673,7 @@ class World(DirectObject):
             if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
                 self.updateBuildSlotButtons()
-                if section == 'ENRG': self.planetDB[celObj]['enrgCap'] -= incVal
+                if section == 'ENRG': self.planetDB[celObj]['enrgCap'] += incVal
             self.planetDB[celObj]['goods'][good]-=decVal
 
         return task.again
