@@ -21,6 +21,7 @@ from direct.task import Task
 import sys
 import random
 import math
+import GUI
 
 base = ShowBase()
 wp = WindowProperties()
@@ -50,6 +51,9 @@ class World(DirectObject):
         self.camSpeed = 10
         self.zoomSpeed = 5
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
+        self.PopulationTimeDelta = 2
+        self.taxFactor = 0.1
+        self.salvageFactor = 0.75
 
         self.selectedObject = None
         self.selectedObjectName = None
@@ -60,12 +64,11 @@ class World(DirectObject):
         self.ActiveBuildSection  = 'RESC' #Is either RESC, PROD, ENRG, DEV or HAB
         self.ActiveBuildSlot = None
         self.ActiveBlueprint = None
-        self.PopulationTimeDelta = 2
-        self.taxFactor = 0.1
-        self.salvageFactor = 0.75
+        self.capitalPlanet = None
+
 
         self.planetDB = {} #All attributes and constructed buildings that a planet has
-        self.buildingsDB = {} #Contains all buildable structures
+        self.buildingsDB = {} #Will contain all buildable structures
 
         # Everything that's needed to detect selecting objects with mouse
         self.pickerNode = CollisionNode('mouseRay')
@@ -78,8 +81,8 @@ class World(DirectObject):
         base.cTrav.addCollider(self.pickerNP, self.collQueue)
 
         # Set up the start screen
-        self.setUpGui()
-        self.loadPlanets()
+        GUI.setUpGui(self)
+        self.loadPlanets()      
         self.rotatePlanets()
         self.fillBuildingsDB()
         self.prepareSlotsInPlanetDB()
@@ -125,9 +128,11 @@ class World(DirectObject):
 
 
     #****************************************
-    #            Main Functions             *
+    #       MAIN GAIMPLAY FUNCTIONS         *
     #****************************************
 
+    # Camera control and main GUI functions
+    #----------------------------------------
     def setCam(self, task):
         dt = globalClock.getDt()
         if self.keyDict['up']: camera.setPos(camera.getPos()[0],camera.getPos()[1] + self.camSpeed * dt, camera.getPos()[2])
@@ -150,20 +155,13 @@ class World(DirectObject):
     def followCam(self, mode, task):
         pos = self.selectedObject.getPos(base.render)
         if mode=='info':
-            camera.setPos(pos[0]-self.followObjectScale * 1.5, 
+            camera.setPos(pos[0]-self.followObjectScale * 1.3, 
                          pos[1]-self.followObjectScale * 4, 
                          self.followObjectScale * 4)
         if mode=='build':
             camera.setPos(pos[0]-self.followObjectScale * 0.9, 
                          pos[1]-self.followObjectScale * 3.4, 
                          0)
-        return task.cont
-
-    def redrawHeadGUI(self, task):
-        self.HeadGUIText['text'] = ('Year '+str(self.yearCounter)+', '
-                                    'Day '+str(self.dayCounter) + ', '
-                                    'Money: ' +str(self.money) + ', '
-                                    'Population: ' +str(self.systemPopulation))
         return task.cont
 
     def handleMouseClick(self):
@@ -177,6 +175,25 @@ class World(DirectObject):
             if not pickedObj.isEmpty() and not self.PlanetInfoModeOn:
                 self.togglePlanetInfoMode(True, pickedObj)
 
+    def redrawHeadGUI(self, task):
+        self.HeadGUIText['text'] = ('Year '+str(self.yearCounter)+', '
+                                    'Day '+str(self.dayCounter) + ', '
+                                    'Money: ' +str(self.money) + ', '
+                                    'Population: ' +str(self.systemPopulation))
+        return task.cont
+
+    def createProblemDialog(self, problemText):
+        self.ProblemDialog = OkDialog(
+            dialogName="OkDialog", text=problemText, command=self.cleanupProblemDialog, 
+            frameColor=(0.15,0.15,0.15,0.8), text_fg=(1,1,1,1))
+
+    def cleanupProblemDialog(self, args):
+        self.ProblemDialog.cleanup()
+
+
+    # Functions to interact with the planet info view
+    #------------------------------------------------
+
     def togglePlanetInfoMode(self, mode=False, obj=None):
         if mode:
             self.MapViewPanel.hide()
@@ -188,8 +205,8 @@ class World(DirectObject):
             camPos = camera.getPos()
             self.clearPlanetInfo()
             self.fillPlanetInfo()
-            self.checkForBuildButton()
-            zoomInterval = Sequence(camera.posInterval(0.3, Point3(pos[0]-self.followObjectScale * 1.5,
+            self.checkForInfoViewButtons()
+            zoomInterval = Sequence(camera.posInterval(0.3, Point3(pos[0]-self.followObjectScale * 1.3,
                                                           pos[1]-self.followObjectScale * 4, 
                                                           self.followObjectScale * 4), camPos), Func(self.PlanetInfoPanel.show))
             zoomInterval.start()
@@ -206,38 +223,6 @@ class World(DirectObject):
             self.clearPlanetInfo()
             self.selectedObject = None
             self.followObjectScale = 1
-
-    def togglePlanetBuildMode(self, mode=False):
-        pos = self.selectedObject.getPos(base.render)
-        camPos = camera.getPos()
-        scale = self.followObjectScale
-        if mode:
-            self.PlanetInfoPanel.hide()
-            self.clearPlanetInfo()
-            self.fillBuildPanel()
-            self.checkForConstructButton()
-            self.checkForSalvageButton()
-            self.updateBuildSlotButtons()
-            taskMgr.remove('infoCamTask')
-            zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 0.9, pos[1]-scale * 3.3, 0), Vec3(0,0,0), camPos),
-                                    Func(self.PlanetBuildPanel.show))
-            zoomInterval.start()
-            taskMgr.add(self.followCam, 'buildcamTask', extraArgs=['build'], appendTask=True)
-            taskMgr.add(self.updateQuickInfoTask, 'quickinfoTask', extraArgs=[self.selectedObjectName], appendTask=True)
-        else:
-            self.PlanetBuildPanel.hide()
-            self.clearSelectedBuildSlot()
-            self.clearBuildPanel()
-            self.updateBuildSlotButtons()
-            self.fillPlanetInfo()
-            taskMgr.remove('quickinfoTask')
-            taskMgr.remove('buildcamTask')
-            zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 1.5, pos[1]-scale * 4, scale * 4), Vec3(0,-45,0), camPos),
-                                    Func(self.PlanetInfoPanel.show))
-            zoomInterval.start()
-            taskMgr.add(self.followCam, 'infocamTask', extraArgs=['info'], appendTask=True)
-
-        return None
 
     def fillPlanetInfo(self):
         # Fills the content of the planet info gui every time a planet gets selected
@@ -295,16 +280,100 @@ class World(DirectObject):
         self.PlanetInfoGoodsTable['text']=''
         self.PlanetInfoENRGTable['text']=''
 
-    def checkForBuildButton(self):
+    def checkForInfoViewButtons(self):
         planet = self.selectedObjectName
-        if self.planetDB[planet]['type'] == 'Star' or self.planetDB[planet]['colonised']:
-            if self.planetDB[self.selectedObjectName]['type']!='Star':
-                self.PlanetInfoBuildButton.show()
-            else:
-                self.PlanetInfoBuildButton.hide()
+        if self.planetDB[planet]['type'] == 'Star':
+            self.PlanetInfoBuildButton.hide()
+            self.PlanetInfoColoniseButton.hide()
+            self.PlanetInfoProbeButton.hide()
+            return
+        
+        if self.planetDB[planet]['colonised']:
+            self.PlanetInfoBuildButton.show()
+            self.PlanetInfoColoniseButton.hide()
+            self.PlanetInfoProbeButton.hide()
+        elif self.planetDB[planet]['probed']:
+            self.PlanetInfoBuildButton.hide()
+            self.PlanetInfoColoniseButton.show()
+            self.PlanetInfoProbeButton.hide()
         else:
             self.PlanetInfoBuildButton.hide()
+            self.PlanetInfoColoniseButton.hide()
+            self.PlanetInfoProbeButton.show()
 
+    
+
+    # Planet Build View and all its functions
+    #----------------------------------------
+
+    def togglePlanetBuildMode(self, mode=False):
+        pos = self.selectedObject.getPos(base.render)
+        camPos = camera.getPos()
+        scale = self.followObjectScale
+        if mode:
+            self.PlanetInfoPanel.hide()
+            self.clearPlanetInfo()
+            self.fillBuildPanel()
+            self.checkForConstructButton()
+            self.checkForSalvageButton()
+            self.updateBuildSlotButtons()
+            taskMgr.remove('infoCamTask')
+            zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 0.9, pos[1]-scale * 3.4, 0), Vec3(0,0,0), camPos),
+                                    Func(self.PlanetBuildPanel.show))
+            zoomInterval.start()
+            taskMgr.add(self.followCam, 'buildcamTask', extraArgs=['build'], appendTask=True)
+            taskMgr.add(self.updateQuickInfoTask, 'quickinfoTask', extraArgs=[self.selectedObjectName], appendTask=True)
+        else:
+            self.PlanetBuildPanel.hide()
+            self.clearSelectedBuildSlot()
+            self.clearBuildPanel()
+            self.updateBuildSlotButtons()
+            self.fillPlanetInfo()
+            taskMgr.remove('quickinfoTask')
+            taskMgr.remove('buildcamTask')
+            zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 1.3, pos[1]-scale * 4, scale * 4), Vec3(0,-45,0), camPos),
+                                    Func(self.PlanetInfoPanel.show))
+            zoomInterval.start()
+            taskMgr.add(self.followCam, 'infocamTask', extraArgs=['info'], appendTask=True)
+
+        return None
+
+    def fillBuildPanel(self):
+        i = 0
+        section = self.ActiveBuildSection
+        for k,v in self.buildingsDB[section].items():
+            newBlueprint = DirectButton(
+                frameColor=(0.15, 0.15, 0.15, 0.9),
+                frameSize=(-0.4, 0.4, -0.125, 0.125), relief='flat',
+                text=k, text_fg=(0,0,0,0),
+                pos=(0, 0, 0.53-i*0.25), parent=self.PlanetBuildPanel,
+                command=self.switchBuildBlueprint)
+            newBlueprint['extraArgs']=[newBlueprint,v]
+            self.PlanetBuildPanelContent.append(newBlueprint)
+
+            newImage = OnscreenImage(image=v['img'], pos=(-0.27, 0, 0.003), scale=(0.125, 1, 0.12),
+                                     parent=(newBlueprint))
+
+            newTitle = DirectLabel(text=k, 
+            pos=(-0.1, 0, 0.05), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
+            parent = newBlueprint, text_align=TextNode.ALeft, text_scale = 0.06)
+
+            newAttributes = DirectLabel(text=('Price: ' + str(v['Price'])), 
+            pos=(-0.1, 0, -0.02), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
+            parent = newBlueprint, text_align=TextNode.ALeft, text_scale = 0.045)
+
+            newRuler = DirectFrame(frameColor=(0,0,0,0.9), frameSize=(-0.4, 0.4, -0.003, 0.003),
+            pos=(0,0,-0.12), parent=newBlueprint)
+
+            i+=1
+
+    def clearBuildPanel(self):
+        for element in self.PlanetBuildPanelContent:
+            element.destroy()
+        self.PlanetBuildPanelContent = []
+        self.ActiveBlueprint = None
+        self.PlanetBuildDescriptionText['text']=''
+    
     def switchBuildSection(self, section, button):
         if section != self.ActiveBuildSection:
             self.PlanetBuildRESCButton['relief'] = 'raised'
@@ -371,58 +440,6 @@ class World(DirectObject):
         else:
             self.PlanetBuildSalvageButton['state']='disabled'
             self.PlanetBuildSalvageButton['text_fg']=(0.5,0.5,0.5,1)
-
-    def fillBuildPanel(self):
-        i = 0
-        section = self.ActiveBuildSection
-        for k,v in self.buildingsDB[section].items():
-            newBlueprint = DirectButton(
-                frameColor=(0.15, 0.15, 0.15, 0.9),
-                frameSize=(-0.4, 0.4, -0.125, 0.125), relief='flat',
-                text=k, text_fg=(0,0,0,0),
-                pos=(0, 0, 0.53-i*0.25), parent=self.PlanetBuildPanel,
-                command=self.switchBuildBlueprint)
-            newBlueprint['extraArgs']=[newBlueprint,v]
-            self.PlanetBuildPanelContent.append(newBlueprint)
-
-            newImage = OnscreenImage(image=v['img'], pos=(-0.27, 0, 0.003), scale=(0.125, 1, 0.12),
-                                     parent=(newBlueprint))
-
-            newTitle = DirectLabel(text=k, 
-            pos=(-0.1, 0, 0.05), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
-            parent = newBlueprint, text_align=TextNode.ALeft, text_scale = 0.06)
-
-            newAttributes = DirectLabel(text=('Price: ' + str(v['Price'])), 
-            pos=(-0.1, 0, -0.02), text_fg=(1,1,1,1), frameColor=(0,0,0,0), 
-            parent = newBlueprint, text_align=TextNode.ALeft, text_scale = 0.045)
-
-            newRuler = DirectFrame(frameColor=(0,0,0,0.9), frameSize=(-0.4, 0.4, -0.003, 0.003),
-            pos=(0,0,-0.12), parent=newBlueprint)
-
-            i+=1
-    
-    def updateQuickInfoTask(self, planet, task):
-        athm = self.planetDB[planet]['athm']
-        wind = self.planetDB[planet]['wind']
-        enrgUsg = self.planetDB[planet]['enrgUsg']
-        enrgCap = self.planetDB[planet]['enrgCap']
-        pop = self.planetDB[planet]['pop']
-        habCap = self.planetDB[planet]['habCap']
-
-        
-        self.PlanetBuildQuickText1['text'] = (
-            'ATHM: {} - WIND: {} - ENRG: {}/{} - POP: {}/{}'.format(athm, wind, enrgUsg, enrgCap, pop, habCap)
-        )
-
-        self.PlanetBuildQuickText2['text'] = 'RESC: '
-        for k,v in self.planetDB[planet]['resc'].items():
-            self.PlanetBuildQuickText2['text'] += k + ', '
-
-        self.PlanetBuildQuickText3['text'] = 'GOODS: '
-        if 'goods' in self.planetDB[planet]:
-            for k,v in self.planetDB[planet]['goods'].items():
-                self.PlanetBuildQuickText3['text'] += str(v) + ' ' + k + ' - '
-        return task.cont
 
     def constructBuilding(self):
         planet = self.selectedObjectName
@@ -560,27 +577,37 @@ class World(DirectObject):
         else: self.PlanetBuildSlot5Lable['text'] = '' 
         self.PlanetBuildSlot5['text'] = section[0] + '5'
 
-
-    def clearBuildPanel(self):
-        for element in self.PlanetBuildPanelContent:
-            element.destroy()
-        self.PlanetBuildPanelContent = []
-        self.ActiveBlueprint = None
-        self.PlanetBuildDescriptionText['text']=''
-
     def clearSelectedBuildSlot(self):
         if self.ActiveBuildSlot != None:
             self.ActiveBuildSlot['relief']='raised'
             self.ActiveBuildSlot = None
 
-    def createProblemDialog(self, problemText):
-        self.ProblemDialog = OkDialog(
-            dialogName="OkDialog", text=problemText, command=self.cleanupProblemDialog, 
-            frameColor=(0.15,0.15,0.15,0.8), text_fg=(1,1,1,1))
+    def updateQuickInfoTask(self, planet, task):
+        athm = self.planetDB[planet]['athm']
+        wind = self.planetDB[planet]['wind']
+        enrgUsg = self.planetDB[planet]['enrgUsg']
+        enrgCap = self.planetDB[planet]['enrgCap']
+        pop = self.planetDB[planet]['pop']
+        habCap = self.planetDB[planet]['habCap']
 
-    def cleanupProblemDialog(self, args):
-        self.ProblemDialog.cleanup()
+        
+        self.PlanetBuildQuickText1['text'] = (
+            'ATHM: {} - WIND: {} - ENRG: {}/{} - POP: {}/{}'.format(athm, wind, enrgUsg, enrgCap, pop, habCap)
+        )
 
+        self.PlanetBuildQuickText2['text'] = 'RESC: '
+        for k,v in self.planetDB[planet]['resc'].items():
+            self.PlanetBuildQuickText2['text'] += k + ', '
+
+        self.PlanetBuildQuickText3['text'] = 'GOODS: '
+        if 'goods' in self.planetDB[planet]:
+            for k,v in self.planetDB[planet]['goods'].items():
+                self.PlanetBuildQuickText3['text'] += str(v) + ' ' + k + ' - '
+        return task.cont
+
+
+    # Diverse collection of gameplay functions and tasks
+    #---------------------------------------------------
 
     def extractRescourceTask(self, celObj, good, incVal, task):
         if not ('goods' in self.planetDB[celObj]):
@@ -627,7 +654,6 @@ class World(DirectObject):
 
         return task.again
 
-
     def populatePlanetTask(self, planet, task):
         if self.planetDB[planet]['habCap'] > self.planetDB[planet]['pop']:
             self.planetDB[planet]['pop']+=random.randint(1,3)
@@ -642,218 +668,27 @@ class World(DirectObject):
         self.systemPopulation = wholePop
         return task.again
 
+    def calcDistanceBetweenPlanets(self, planet1, planet2):
+        pos1 = planet1.getPos(base.render)
+        pos2 = planet2.getPos(base.render)
+        diffX = abs(pos1[0] - pos2[0])
+        diffY = abs(pos1[1] - pos2[1])
+        dist = math.sqrt(diffX**2 + diffY**2)
+        return dist
+
+    def showProbeMission(self):
+        planet1 = self.capitalPlanet
+        planet2 = self.selectedObject
+        name = self.selectedObjectName
+        dist = round(self.calcDistanceBetweenPlanets(planet1, planet2),3)
+        time = round(dist * 15)
+        cost = 500 + round(dist * 67)
+        missionText = "Probe misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
+        self.createProblemDialog(missionText)
 
     #****************************************
     #       Initialisation Functions        *
     #****************************************
-
-    def setUpGui(self):
-        # Constant visible gui elements
-        #------------------------------
-        self.HeadGUIPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0.9), frameSize=(0, 1.55, -0.13, 0), pos=(-1.8, 0, 1))
-        
-        self.HeadGUIText = DirectLabel(text=('Year '+str(self.yearCounter)+', '
-                                             'Day '+str(self.dayCounter) + ', '
-                                             'Money: ' +str(self.money) + ', '
-                                             'Population: ' +str(self.systemPopulation)), 
-            pos=(0.1, 0, -0.085), text_fg=(1, 1, 1, 1), frameColor=(0,0,0,0),
-            parent=self.HeadGUIPanel, text_align=TextNode.ALeft, text_scale=.07)
-
-        self.MapViewPanel = DirectFrame(
-            frameColor=(0.2, 0.2, 0.22, 0.9),
-            frameSize=(0, 0.5, -1.2, 0),
-            pos=(-1.75, 0, 0.6))
-
-        self.MapViewProbeButton = DirectButton(text='Probe', 
-            pos=(0.238,0,-0.1), pad=(0.085, 0.02), borderWidth=(0.01,0.01),
-            text_scale=0.07, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            parent=self.MapViewPanel)
-
-        self.MapViewColoniseButton = DirectButton(text='Colonize', 
-            pos=(0.238,0,-0.25), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
-            text_scale=0.07, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            parent=self.MapViewPanel)
-
-        # All static gui elements for the planet info screen
-        #---------------------------------------------------
-        self.PlanetInfoPanel = DirectFrame(
-            frameColor=(0.2, 0.2, 0.22, 0.9),
-            frameSize=(-0.9, 1.1, -0.65, 0.65),
-            pos=(-0.8, 0, 0))
-        self.PlanetInfoPanel.hide()
-
-        self.PlanetInfoTitle = DirectLabel(text='', pos=(-0.85, 0, 0.5), 
-            text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = self.PlanetInfoPanel, 
-            text_align=TextNode.ALeft, text_scale = 0.13)
-
-        self.PlanetInfoAttributesTable = DirectLabel(text='', pos=(-0.85, 0, 0.4), 
-            text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = self.PlanetInfoPanel, 
-            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
-
-        self.PlanetInfoRescourceTable = DirectLabel(text='', pos=(-0.85, 0, 0), 
-            text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = self.PlanetInfoPanel, 
-            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
-        
-        self.PlanetInfoGoodsTable = DirectLabel(text='', pos=(-0.85, 0, -0.35), 
-            text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = self.PlanetInfoPanel, 
-            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
-
-        self.PlanetInfoENRGTable = DirectLabel(text='', pos=(0.28, 0, 0.4), 
-            text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = self.PlanetInfoPanel, 
-            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
-
-        self.PlanetInfoCloseButton = DirectButton(text='Close', 
-            pos=(-0.745,0,-0.92), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.togglePlanetInfoMode, extraArgs=[False], parent=self.PlanetInfoPanel)
-
-        self.PlanetInfoBuildButton = DirectButton(text='Build', 
-            pos=(1.8,0,-0.58), pad=(0.06, 0.05), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.togglePlanetBuildMode, extraArgs=[True])
-        self.PlanetInfoBuildButton.reparentTo(self.PlanetInfoPanel)
-
-        # All static gui elements for the planet build panel
-        #---------------------------------------------------
-        self.PlanetBuildPanel = DirectFrame(
-            frameColor=(0.15, 0.15, 0.15, 0.9),
-            frameSize=(-0.4, 1.23, 0.66, -0.65),
-            pos=(-1.3, 0, 0))
-        self.PlanetBuildPanel.hide()
-
-        self.PlanetBuildPanelContent = []
-
-        self.PlanetBuildPanelRuler = DirectFrame(frameColor=(0,0,0,0.9), frameSize=(-0.003, 0.003, -1.305, 0),
-            pos=(0.408,0,0.657), parent=self.PlanetBuildPanel)
-
-        self.PlanetBuildDescriptionField = DirectFrame(
-            frameColor=(0.2, 0.2, 0.22, 0.9),
-            frameSize=(-0.4, 0.4, 0.25, -0.25),
-            pos=(0.825, 0, 0.41), parent=self.PlanetBuildPanel)
-
-        self.PlanetBuildDescriptionText = DirectLabel(text='', 
-            pos=(-0.36, 0, 0.18), text_fg=(1,1,1,1), frameColor=(0,0,0,0), text_scale = 0.05, text_wordwrap=15,
-            frameSize=(0,0.8,0,0.5), parent = self.PlanetBuildDescriptionField, text_align=TextNode.ALeft)
-
-        self.PlanetBuildConstructButton = DirectButton(text='Construct ->', 
-            pos=(-0.122,0,-0.37), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.constructBuilding, parent=self.PlanetBuildDescriptionField, state='disabled')
-
-        self.PlanetBuildSalvageButton  = DirectButton(text='<- Salvage', 
-            pos=(-0.126,0,-0.52), pad=(0.085, 0.013), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.salvageBuilding, parent=self.PlanetBuildDescriptionField, state='disabled')
-
-        self.PlanetBuildCloseButton = DirectButton(text='Back', 
-            pos=(-0.26,0,-0.92), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
-            text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.togglePlanetBuildMode, extraArgs=[False], parent=self.PlanetBuildPanel)
-
-
-        self.PlanetBuildRESCButton = DirectButton(text='Rescources', 
-            pos=(0.4,0,0.75), pad=(0.03, 0.02), borderWidth=(0.01,0.01),
-            text_scale=0.06, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.switchBuildSection, parent=self.PlanetBuildPanel, relief='sunken')
-        self.PlanetBuildRESCButton['extraArgs']=['RESC', self.PlanetBuildRESCButton]
-
-        self.PlanetBuildPRODButton = DirectButton(text='Production', 
-            pos=(0.79,0,0.75), pad=(0.03, 0.02), borderWidth=(0.01,0.01),
-            text_scale=0.06, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.switchBuildSection, parent=self.PlanetBuildPanel)
-        self.PlanetBuildPRODButton['extraArgs']=['PROD', self.PlanetBuildPRODButton]
-
-        self.PlanetBuildENRGButton = DirectButton(text='Energy', 
-            pos=(1.19,0,0.755), pad=(0.1, 0.017), borderWidth=(0.01,0.01),
-            text_scale=0.06, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.switchBuildSection, parent=self.PlanetBuildPanel)
-        self.PlanetBuildENRGButton['extraArgs']=['ENRG', self.PlanetBuildENRGButton]
-
-        self.PlanetBuildDEVButton = DirectButton(text='Developement', 
-            pos=(1.64,0,0.755), pad=(0.03, 0.017), borderWidth=(0.01,0.01),
-            text_scale=0.06, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.switchBuildSection, parent=self.PlanetBuildPanel)
-        self.PlanetBuildDEVButton['extraArgs']=['DEV', self.PlanetBuildDEVButton]
-
-        self.PlanetBuildHABButton = DirectButton(text='Habitation', 
-            pos=(2.06,0,0.75), pad=(0.03, 0.02), borderWidth=(0.01,0.01),
-            text_scale=0.06, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.switchBuildSection, parent=self.PlanetBuildPanel)
-        self.PlanetBuildHABButton['extraArgs']=['HAB', self.PlanetBuildHABButton]
-
-
-        self.PlanetBuildQuickInfo = DirectFrame(frameSize=(0, 1.63, -0.08, 0.07), pos=(-0.4,0,-0.73),
-            frameColor=(0.15, 0.15, 0.15, 0.9), parent=self.PlanetBuildPanel)
-
-        self.PlanetBuildQuickText1 = DirectLabel(text='ATHM: Yes  -  WIND: 1  -  HAB: 20/100  -  ENRG: 60/100', 
-            pos=(0.03, 0, 0.015), text_fg=(0.9,0.9,0.9,1), frameColor=(0,0,0,0), text_scale = 0.05,
-            frameSize=(0,0.8,0,0.5), parent=self.PlanetBuildQuickInfo, text_align=TextNode.ALeft)
-        
-        self.PlanetBuildQuickText2 = DirectLabel(text='RESC: Coal, Iron, Uranium', 
-            pos=(0.03, 0, -0.038), text_fg=(0.9,0.9,0.9,1), frameColor=(0,0,0,0), text_scale = 0.05,
-            frameSize=(0,0.8,0,0.5), parent=self.PlanetBuildQuickInfo, text_align=TextNode.ALeft)
-
-        self.PlanetBuildQuickText3 = DirectLabel(text='GOODS: Coal sacks, Uranium rods', 
-            pos=(0.7, 0, -0.038), text_fg=(0.9,0.9,0.9,1), frameColor=(0,0,0,0), text_scale = 0.05,
-            frameSize=(0,0.8,0,0.5), parent=self.PlanetBuildQuickInfo, text_align=TextNode.ALeft)
-
-        # All static gui elements for the planet build slots
-        #---------------------------------------------------
-        self.PlanetBuildSlotContainer = DirectFrame(pos=(1.45,0,0), frameColor=(0.5,0.5,0.5,1))
-        self.PlanetBuildSlotContainer.reparentTo(self.PlanetBuildPanel)
-
-        self.PlanetBuildSlot1 = DirectButton(text='R1', 
-            pos=(0.27,0,0.5), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-            text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(1,1,1,1), text_roll=45,
-            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer)
-        self.PlanetBuildSlot1['extraArgs'] = [self.PlanetBuildSlot1]
-        self.PlanetBuildSlot1Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), text_bg=(0.2,0.2,0.2,0.9),
-            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot1)
-
-        self.PlanetBuildSlot2 = DirectButton(text='R2', 
-            pos=(0.12,0,0.29), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-            text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(1,1,1,1), text_roll=45,
-            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer)
-        self.PlanetBuildSlot2['extraArgs'] = [self.PlanetBuildSlot2]
-        self.PlanetBuildSlot2Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
-            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot2)
-
-        self.PlanetBuildSlot3 = DirectButton(text='R3', 
-            pos=(0.05,0,0), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-            text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(1,1,1,1), text_roll=45,
-            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer)
-        self.PlanetBuildSlot3['extraArgs'] = [self.PlanetBuildSlot3]
-        self.PlanetBuildSlot3Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
-            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot3)
-
-        self.PlanetBuildSlot4 = DirectButton(text='R4', 
-            pos=(0.12,0,-0.29), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-            text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
-        self.PlanetBuildSlot4['extraArgs'] = [self.PlanetBuildSlot4]
-        self.PlanetBuildSlot4Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
-            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot4)
-
-        self.PlanetBuildSlot5 = DirectButton(text='R5', 
-            pos=(0.27,0,-0.51), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-            text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-            command=self.switchBuildSlot, parent=self.PlanetBuildSlotContainer, state='disabled')
-        self.PlanetBuildSlot5['extraArgs'] = [self.PlanetBuildSlot5]
-        self.PlanetBuildSlot5Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
-            frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=self.PlanetBuildSlot5)
-
-
-        #self.PlanetBuildWire1 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(0,1,0,1),
-        #    pos=(1.7,-0.5,-0.035))
-        #self.PlanetBuildWire1.reparentTo(self.PlanetBuildSlotContainer)
-
-        #self.PlanetBuildWire2 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
-        #    pos=(1.4,-0.5, 0.165))
-        #self.PlanetBuildWire2.reparentTo(self.PlanetBuildSlotContainer)
-
-        #self.PlanetBuildWire3 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(1,0,0,1),
-        #    pos=(1.4,-0.5,-0.235))
-        #self.PlanetBuildWire3.reparentTo(self.PlanetBuildSlotContainer)
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
@@ -940,6 +775,8 @@ class World(DirectObject):
         self.earth.setPos(self.planetDB['earth']['dist'] * self.orbitscale, 0, 0)
         self.earth.setTag('clickable', 'yes')
         self.earth.setTag('name', 'earth')
+        self.capitalPlanet = self.earth
+        
 
         self.orbit_root_moon.setPos(self.orbitscale, 0, 0)
 
