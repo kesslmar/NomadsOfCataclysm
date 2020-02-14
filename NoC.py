@@ -51,7 +51,7 @@ class World(DirectObject):
         self.camSpeed = 10
         self.zoomSpeed = 5
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
-        self.PopulationTimeDelta = 2
+        self.PopulationTimeDelta = 3
         self.taxFactor = 0.1
         self.salvageFactor = 0.75
 
@@ -464,7 +464,14 @@ class World(DirectObject):
             else:
                 if enrgUsg + self.buildingsDB[section][blueprint]['enrgDrain'] <= enrgCap:
                     if section == 'RESC':
-                        if self.buildingsDB[section][blueprint]['req'] in self.planetDB[planet]['resc']:
+                        if self.buildingsDB[section][blueprint]['req'] == 'Athmosphere':
+                            if self.planetDB[planet]['athm']:
+                                getsBuild = True
+                                addRESCTask = True
+                                self.planetDB[planet]['enrgUsg']+=self.buildingsDB[section][blueprint]['enrgDrain']    
+                            else:
+                                self.createProblemDialog('No Athmosphere present')
+                        elif self.buildingsDB[section][blueprint]['req'] in self.planetDB[planet]['resc']:
                             getsBuild = True
                             addRESCTask = True
                             self.planetDB[planet]['enrgUsg']+=self.buildingsDB[section][blueprint]['enrgDrain']
@@ -611,10 +618,7 @@ class World(DirectObject):
     #---------------------------------------------------
 
     def extractRescourceTask(self, celObj, section, slot, good, incVal, task):
-        section = 'RESC'
         
-        if not ('goods' in self.planetDB[celObj]):
-            self.planetDB[celObj].update({'goods':{}})
         if not (good in self.planetDB[celObj]['goods']):
             self.planetDB[celObj]['goods'].update({good:0})
         
@@ -633,8 +637,6 @@ class World(DirectObject):
         return task.again
 
     def processGoodTask(self, celObj, section, slot, inGood, outGood, incVal, decVal, task):
-        if not ('goods' in self.planetDB[celObj]):
-            self.planetDB[celObj].update({'goods':{}})
 
         if not (inGood in self.planetDB[celObj]['goods']) or self.planetDB[celObj]['goods'][inGood] < decVal:
             if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
@@ -660,8 +662,6 @@ class World(DirectObject):
         return task.again
 
     def consumeGoodTask(self, celObj, section, slot, good, decVal, incVal, task):
-        if not ('goods' in self.planetDB[celObj]):
-            self.planetDB[celObj].update({'goods':{}})
 
         if not (good in self.planetDB[celObj]['goods']) or self.planetDB[celObj]['goods'][good] < decVal:
             if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
@@ -679,8 +679,16 @@ class World(DirectObject):
         return task.again
 
     def populatePlanetTask(self, planet, task):
-        if self.planetDB[planet]['habCap'] > self.planetDB[planet]['pop']:
+        habProblem = self.planetDB[planet]['habCap'] <= self.planetDB[planet]['pop']
+        foodProblem = not('Vegetable crates' in self.planetDB[planet]['goods']) or self.planetDB[planet]['goods']['Vegetable crates'] < 3
+
+        if foodProblem:
+            self.planetDB[planet]['pop']-=random.randint(-1,2)
+        elif habProblem:
+            pass
+        else:
             self.planetDB[planet]['pop']+=random.randint(1,3)
+            self.planetDB[planet]['goods']['Vegetable crates'] -= self.planetDB[planet]['pop']
         return task.again
 
     def generateMoneyTask(self, task):
@@ -755,7 +763,8 @@ class World(DirectObject):
             'type':'Planet',    'athm':False,   'wind':1, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,         'probed':False, 'colonised':False,
-            'resc':{'Coal':'Common', 'Iron':'Common'} }})
+            'resc':{'Coal':'Common', 'Iron':'Common'},
+            'goods':{} }})
         self.mercury = loader.loadModel("models/planet_sphere")
         self.mercury_tex = loader.loadTexture("models/mercury_1k_tex.jpg")
         self.mercury.setTexture(self.mercury_tex, 1)
@@ -770,7 +779,8 @@ class World(DirectObject):
             'type':'Planet',    'athm':False,   'wind':2, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,         'probed':False, 'colonised':False,
-            'resc':{'Coal':'Common', 'Uranium':'Normal'} }})
+            'resc':{'Coal':'Common', 'Uranium':'Normal'},
+            'goods':{} }})
         self.venus = loader.loadModel("models/planet_sphere")
         self.venus_tex = loader.loadTexture("models/venus_1k_tex.jpg")
         self.venus.setTexture(self.venus_tex, 1)
@@ -785,7 +795,8 @@ class World(DirectObject):
             'type':'Planet',    'athm':False,   'wind':1, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,         'probed':True, 'colonised':False,
-            'resc':{'Gemstone':'Rare', 'Iron':'Rare'} }})
+            'resc':{'Gemstone':'Rare', 'Iron':'Rare'},
+            'goods':{} }})
         self.mars = loader.loadModel("models/planet_sphere")
         self.mars_tex = loader.loadTexture("models/mars_1k_tex.jpg")
         self.mars.setTexture(self.mars_tex, 1)
@@ -800,7 +811,8 @@ class World(DirectObject):
             'type':'Planet',    'athm':True,    'wind':1, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':100,         'probed':True, 'colonised':True,
-            'resc':{'Iron':'Normal', 'Coal':'Common', 'Uranium':'Rare'} }})
+            'resc':{'Iron':'Normal', 'Coal':'Common', 'Uranium':'Rare'}, 
+            'goods':{} }})
         self.earth = loader.loadModel("models/planet_sphere")
         self.earth_tex = loader.loadTexture("models/earth_1k_tex.jpg")
         self.earth.setTexture(self.earth_tex, 1)
@@ -819,7 +831,8 @@ class World(DirectObject):
             'type':'Moon',      'athm':False,   'wind':0, 
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,         'probed':True, 'colonised':False,
-            'resc':{'Coal':'Common', 'Cheese':'Rare'} }})
+            'resc':{'Coal':'Common', 'Cheese':'Rare'}, 
+            'goods':{} }})
         self.moon = loader.loadModel("models/planet_sphere")
         self.moon_tex = loader.loadTexture("models/moon_1k_tex.jpg")
         self.moon.setTexture(self.moon_tex, 1)
@@ -883,6 +896,11 @@ class World(DirectObject):
     def fillBuildingsDB(self):
         self.buildingsDB = {
             'RESC':{
+                'Organic Farm': {   'Price':250, 'Time':60, 'yield':'Vegetable crates', 'incVal':20, 'yieldText':'20 Vegetable crates per tick',
+                                    'req':'Athmosphere', 'decVal':0, 'reqText':'Athmosphere, 200 Energy', 'enrgDrain': 200, 
+                                    'desc':'Basic vegetable farm to satisfy nutrition needs.', 
+                                    'img':'models/organicfarm.jpg'},
+                
                 'Coal Drill': {     'Price':300, 'Time':60, 'yield':'Coal sacks', 'incVal':10, 'yieldText':'10 Coal sacks per tick', 
                                     'req':'Coal', 'decVal':0, 'reqText':'Coal, 100 Energy', 'enrgDrain': 100, 
                                     'desc':'Simple mining drill to extract coal rescources of a planet.', 
@@ -896,12 +914,7 @@ class World(DirectObject):
                 'Uranium Site': {   'Price':600, 'Time':300, 'yield':'Uranium containers', 'incVal':5, 'yieldText':'5 Uranium containters per tick',
                                     'req':'Uranium', 'decVal':0, 'reqText':'Uranium, 500 Energy', 'enrgDrain': 500, 
                                     'desc':'High tech facility to gather raw uranium. This has then to be enriched for further use.', 
-                                    'img':'models/uraniumsite.jpg'},
-
-                'Organic Farm': {   'Price':250, 'Time':60, 'yield':'Vegetable crates', 'incVal':20, 'yieldText':'20 Vegetable crates per tick',
-                                    'req':'Athmosphere', 'decVal':0, 'reqText':'Athmosphere, 200 Energy', 'enrgDrain': 200, 
-                                    'desc':'Basic vegetable farm to satisfy nutrition needs.', 
-                                    'img':'models/placeholder.jpg'}
+                                    'img':'models/uraniumsite.jpg'}
             },
             'PROD':{
                 'Weapon Forge': {   'Price':500, 'Time':120, 'yield':'Weapons', 'incVal':10, 'yieldText':'10 Weapons per tick',
