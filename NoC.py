@@ -54,6 +54,8 @@ class World(DirectObject):
         self.PopulationTimeDelta = 3
         self.taxFactor = 0.1
         self.salvageFactor = 0.75
+        self.foodConsumingFactor = 0.75
+        self.goodsCap = 1000
 
         self.selectedObject = None
         self.selectedObjectName = None
@@ -315,7 +317,7 @@ class World(DirectObject):
             self.clearPlanetInfo()
             self.fillBuildPanel()
             self.checkForConstructButton()
-            self.checkForSalvageButton()
+            self.checkForSalvageAndInfo()
             self.updateBuildSlotButtons()
             taskMgr.remove('infoCamTask')
             zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 0.9, pos[1]-scale * 3.4, 0), Vec3(0,0,0), camPos),
@@ -387,7 +389,7 @@ class World(DirectObject):
             self.clearBuildPanel()
             self.clearSelectedBuildSlot()
             self.checkForConstructButton()
-            self.checkForSalvageButton()
+            self.checkForSalvageAndInfo()
             self.ActiveBuildSection = section
 
             pos = self.PlanetBuildSlotContainer.getPos()
@@ -402,8 +404,10 @@ class World(DirectObject):
         self.clearSelectedBuildSlot()
         self.ActiveBuildSlot = newSlot
         newSlot['relief'] = 'sunken'
+        newSlot['frameColor']  = (0.25,0.25,0.25,1)
+
         self.checkForConstructButton()
-        self.checkForSalvageButton()
+        self.checkForSalvageAndInfo()
 
     def switchBuildBlueprint(self, blueprint, building):
         if self.ActiveBlueprint != None:
@@ -430,16 +434,29 @@ class World(DirectObject):
             self.PlanetBuildConstructButton['state']='disabled'
             self.PlanetBuildConstructButton['text_fg']=(0.5,0.5,0.5,1)
         
-    def checkForSalvageButton(self):
+    def checkForSalvageAndInfo(self):
         planet=self.selectedObjectName
         section=self.ActiveBuildSection
 
         if self.ActiveBuildSlot != None and self.planetDB[planet]['slots'][section][self.ActiveBuildSlot['text']] != None:
             self.PlanetBuildSalvageButton['state']='normal'
             self.PlanetBuildSalvageButton['text_fg']=(1,1,1,1)
+            self.PlanetBuildSlotInfo.show()
+            self.fillSlotInfo(planet, section, self.ActiveBuildSlot['text'])
         else:
             self.PlanetBuildSalvageButton['state']='disabled'
             self.PlanetBuildSalvageButton['text_fg']=(0.5,0.5,0.5,1)
+            self.PlanetBuildSlotInfo.hide()
+
+    def fillSlotInfo(self, planet, section, slot):
+        if not None in (planet, section, slot):
+
+            if self.planetDB[planet]['slots'][section][slot]['problemText'] == '':
+                problemText = 'Running as intended'
+            else:
+                problemText = self.planetDB[planet]['slots'][section][slot]['problemText']
+            
+            self.PlanetBuildSlotInfoText['text'] = problemText
 
     def constructBuilding(self):
         planet = self.selectedObjectName
@@ -501,23 +518,23 @@ class World(DirectObject):
         if addRESCTask:
             good = self.buildingsDB[section][blueprint]['yield']
             incVal = self.buildingsDB[section][blueprint]['incVal']
-            taskMgr.doMethodLater(5, self.extractRescourceTask, blueprint + slot, extraArgs=[planet,section, slot, good,incVal], appendTask=True)
+            taskMgr.doMethodLater(3, self.extractRescourceTask, blueprint + slot, extraArgs=[planet,section, slot, good,incVal], appendTask=True)
 
         if addPRODTask:
             inGood = self.buildingsDB[section][blueprint]['req']
             outGood = self.buildingsDB[section][blueprint]['yield']
             incVal = self.buildingsDB[section][blueprint]['incVal']
             decVal = self.buildingsDB[section][blueprint]['decVal']
-            taskMgr.doMethodLater(5, self.processGoodTask, blueprint + slot, extraArgs=[planet, section, slot, inGood, outGood, incVal, decVal], appendTask=True)
+            taskMgr.doMethodLater(3, self.processGoodTask, blueprint + slot, extraArgs=[planet, section, slot, inGood, outGood, incVal, decVal], appendTask=True)
             
         if addConsumeTask:
             good = self.buildingsDB[section][blueprint]['req']
             decVal = self.buildingsDB[section][blueprint]['decVal']
             incVal = self.buildingsDB[section][blueprint]['incVal']
-            taskMgr.doMethodLater(5, self.consumeGoodTask, blueprint + slot, extraArgs=[planet, section, slot, good, decVal, incVal], appendTask=True)
+            taskMgr.doMethodLater(3, self.consumeGoodTask, blueprint + slot, extraArgs=[planet, section, slot, good, decVal, incVal], appendTask=True)
 
         self.checkForConstructButton()
-        self.checkForSalvageButton()
+        self.checkForSalvageAndInfo()
 
     def salvageBuilding(self):
             planet = self.selectedObjectName
@@ -546,7 +563,7 @@ class World(DirectObject):
                 self.updateBuildSlotButtons()
                 
                 taskMgr.remove(blueprint + slot)
-                self.checkForSalvageButton()
+                self.checkForSalvageAndInfo()
                 self.checkForConstructButton()
 
     def updateBuildSlotButtons(self):
@@ -588,6 +605,7 @@ class World(DirectObject):
     def clearSelectedBuildSlot(self):
         if self.ActiveBuildSlot != None:
             self.ActiveBuildSlot['relief']='raised'
+            self.ActiveBuildSlot['frameColor'] = (0.2,0.2,0.2,1)
             self.ActiveBuildSlot = None
 
     def updateQuickInfoTask(self, planet, task):
@@ -627,11 +645,19 @@ class World(DirectObject):
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
                 self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Not enough energy to continue extraction'
                 self.updateBuildSlotButtons()
+                self.fillSlotInfo(celObj, section, slot)
+        elif self.planetDB[celObj]['goods'][good] >= self.goodsCap:
+            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
+                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
+                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Storage is full'
+                self.updateBuildSlotButtons()
+                self.fillSlotInfo(celObj, section, slot)
         else:
             if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
                 self.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
                 self.updateBuildSlotButtons()
+                self.fillSlotInfo(celObj, section, slot)
             self.planetDB[celObj]['goods'][good]+=incVal
         
         return task.again
@@ -643,16 +669,25 @@ class World(DirectObject):
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
                 self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue production'.format(inGood)
                 self.updateBuildSlotButtons()
+                self.fillSlotInfo(celObj, section, slot)
         elif self.planetDB[celObj]['enrgCap'] < self.planetDB[celObj]['enrgUsg']:
             if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
                 self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Not enough energy to continue production'
                 self.updateBuildSlotButtons()
+                self.fillSlotInfo(celObj, section, slot)
+        elif self.planetDB[celObj]['goods'][outGood] >= self.goodsCap:
+            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
+                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
+                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Storage is full'
+                self.updateBuildSlotButtons()
+                self.fillSlotInfo(celObj, section, slot)
         else:
             if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
                 self.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
                 self.updateBuildSlotButtons()
+                self.fillSlotInfo(celObj, section, slot)
                 
             self.planetDB[celObj]['goods'][inGood]-=decVal
             if not (outGood in self.planetDB[celObj]['goods']):
@@ -668,11 +703,14 @@ class World(DirectObject):
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
                 self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue service'.format(good)
                 self.updateBuildSlotButtons()
+                self.fillSlotInfo(celObj, section, slot)
                 if section == 'ENRG': self.planetDB[celObj]['enrgCap'] -= incVal
         else:
             if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
                 self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
+                self.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
                 self.updateBuildSlotButtons()
+                self.fillSlotInfo(celObj, section, slot)
                 if section == 'ENRG': self.planetDB[celObj]['enrgCap'] += incVal
             self.planetDB[celObj]['goods'][good]-=decVal
 
@@ -680,15 +718,21 @@ class World(DirectObject):
 
     def populatePlanetTask(self, planet, task):
         habProblem = self.planetDB[planet]['habCap'] <= self.planetDB[planet]['pop']
-        foodProblem = not('Vegetable crates' in self.planetDB[planet]['goods']) or self.planetDB[planet]['goods']['Vegetable crates'] < 3
+        foodProblem = (not('Vegetable crates' in self.planetDB[planet]['goods']) or 
+                      self.planetDB[planet]['goods']['Vegetable crates'] < self.planetDB[planet]['pop'])
 
         if foodProblem:
-            self.planetDB[planet]['pop']-=random.randint(-1,2)
+            d = random.randint(-1,2)
+            if self.planetDB[planet]['pop'] - d <= 0:
+                self.planetDB[planet]['pop'] = 0
+            else:
+                self.planetDB[planet]['pop'] -= d
         elif habProblem:
             pass
+            self.planetDB[planet]['goods']['Vegetable crates'] -= round(self.planetDB[planet]['pop'] * self.foodConsumingFactor)
         else:
             self.planetDB[planet]['pop']+=random.randint(1,3)
-            self.planetDB[planet]['goods']['Vegetable crates'] -= self.planetDB[planet]['pop']
+            self.planetDB[planet]['goods']['Vegetable crates'] -= round(self.planetDB[planet]['pop'] * self.foodConsumingFactor)
         return task.again
 
     def generateMoneyTask(self, task):

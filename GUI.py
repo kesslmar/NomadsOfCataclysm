@@ -69,7 +69,7 @@ def setUpGui(world):
     world.PlanetInfoColoniseButton = DirectButton(text='Colonise', 
         pos=(1.85,0,0.55), pad=(0.03, 0.02), borderWidth=(0.01,0.01),
         text_scale=0.07, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-        command=world.showProbeMission, parent=world.PlanetInfoPanel)
+        command=world.showColoniseMission, parent=world.PlanetInfoPanel)
 
     world.PlanetInfoBuildButton = DirectButton(text='Build', 
         pos=(1.65,0,-0.58), pad=(0.06, 0.05), borderWidth=(0.01,0.01),
@@ -208,6 +208,12 @@ def setUpGui(world):
     world.PlanetBuildSlot5Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
         frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=world.PlanetBuildSlot5)
 
+    world.PlanetBuildSlotInfo = DirectFrame(pos=(0.4,0,0.35), frameSize=(0,0.9,-0.7,0), frameColor=(0.2,0.2,0.25,0.8),
+        parent=world.PlanetBuildSlotContainer, text_scale=0.03, text_fg=(1,1,1,1))
+    world.PlanetBuildSlotInfo.hide()
+    world.PlanetBuildSlotInfoText = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0,0,0,0),
+        frameColor=(0,0,0,0), pos=(0.04,0,-0.09), text_align=TextNode.ALeft, text_wordwrap=15,
+        parent=world.PlanetBuildSlotInfo)
 
         #world.PlanetBuildWire1 = DirectFrame(frameSize=(0,0.005,0,0.13), frameColor=(0,1,0,1),
         #    pos=(1.7,-0.5,-0.035))
