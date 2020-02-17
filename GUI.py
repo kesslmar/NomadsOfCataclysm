@@ -10,7 +10,7 @@ def setUpGui(world):
 
     # Loading all GUI textures via egg files
     #---------------------------------------
-    buttonModel = loader.loadModel('models/gui/button2/simple_button_maps.egg')
+    buttonModel = loader.loadModel('models/gui/buttons/simple_button_maps.egg')
     buttonMaps = (buttonModel.find('**/normal'),buttonModel.find('**/active'),
                   buttonModel.find('**/normal'),buttonModel.find('**/disabled'))
 
@@ -18,6 +18,7 @@ def setUpGui(world):
     slotMaps = (slotModel.find('**/normal'),slotModel.find('**/active'),
                   slotModel.find('**/normal'),slotModel.find('**/disabled'))
 
+    world.infoDialogPanelMap = loader.loadModel('models/gui/panels/infodialogpanel_maps.egg').find('**/infodialogpanel')
 
     # Constant visible gui elements
     #------------------------------
@@ -41,6 +42,9 @@ def setUpGui(world):
     # All static gui elements for the planet info screen
     #---------------------------------------------------
     infoPanelMap = loader.loadModel('models/gui/panels/planetinfopanel_maps.egg').find('**/planetinfopanel')
+    problemPanelMap = loader.loadModel('models/gui/panels/planetproblempanel_maps.egg').find('**/planetproblempanel')
+    
+    
     
     world.PlanetInfoPanel = DirectFrame(
         pos=(-0.8, 0, 0), frameColor=(0.2, 0.2, 0.22, 0), frameSize=(-0.9, 1.1, -0.65, 0.65),
@@ -49,7 +53,7 @@ def setUpGui(world):
 
     world.PlanetInfoTitle = DirectLabel(text='', pos=(0.1, 0, 0.5), 
         text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = world.PlanetInfoPanel, 
-        text_align=TextNode.ACenter, text_scale = 0.13)
+        text_align=TextNode.ACenter, text_scale = 0.12)
 
     world.PlanetInfoAttributesTable = DirectLabel(text='', pos=(-0.85, 0, 0.35), 
         text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = world.PlanetInfoPanel, 
@@ -88,8 +92,9 @@ def setUpGui(world):
         text_scale=0.15, text_pos=(0, -0.03), text_fg=(1,1,1,1), geom_scale=(0.5,0,1.2), geom=(buttonMaps),
         command=world.togglePlanetBuildMode, extraArgs=[True], parent=world.PlanetInfoPanel)
 
-    world.PlanetInfoProblemPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0.9),
-        frameSize=(0, 0.4, -1.3, 0),pos=(2.25, 0, 0.65), parent=world.PlanetInfoPanel)
+    world.PlanetInfoProblemPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0),
+        frameSize=(0, 0, 0, 0),pos=(2.33, 0, 0.16), parent=world.PlanetInfoPanel,
+        geom=problemPanelMap, geom_scale=(0.7,0,0.7), geom_pos=(0,0,0), enableEdit=1)
 
     # All static gui elements for the planet build panel
     #---------------------------------------------------

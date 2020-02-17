@@ -158,7 +158,7 @@ class World(DirectObject):
     def followCam(self, mode, task):
         pos = self.selectedObject.getPos(base.render)
         if mode=='info':
-            camera.setPos(pos[0]-self.followObjectScale * 1.3, 
+            camera.setPos(pos[0]-self.followObjectScale * 1.25, 
                          pos[1]-self.followObjectScale * 4, 
                          self.followObjectScale * 4)
         if mode=='build':
@@ -187,8 +187,8 @@ class World(DirectObject):
 
     def createProblemDialog(self, problemText):
         self.ProblemDialog = OkDialog(
-            dialogName="OkDialog", text=problemText, command=self.cleanupProblemDialog, 
-            frameColor=(0.15,0.15,0.15,0.8), text_fg=(1,1,1,1))
+            dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),
+            frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap)
 
     def cleanupProblemDialog(self, args):
         self.ProblemDialog.cleanup()
@@ -209,7 +209,7 @@ class World(DirectObject):
             self.clearPlanetInfo()
             self.fillPlanetInfo()
             self.checkForInfoViewButtons()
-            zoomInterval = Sequence(camera.posInterval(0.3, Point3(pos[0]-self.followObjectScale * 1.3,
+            zoomInterval = Sequence(camera.posInterval(0.3, Point3(pos[0]-self.followObjectScale * 1.25,
                                                           pos[1]-self.followObjectScale * 4, 
                                                           self.followObjectScale * 4), camPos), Func(self.PlanetInfoPanel.show))
             zoomInterval.start()
@@ -334,7 +334,7 @@ class World(DirectObject):
             self.fillPlanetInfo()
             taskMgr.remove('quickinfoTask')
             taskMgr.remove('buildcamTask')
-            zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 1.3, pos[1]-scale * 4, scale * 4), Vec3(0,-45,0), camPos),
+            zoomInterval = Sequence(camera.posHprInterval(0.3, Point3(pos[0]-scale * 1.25, pos[1]-scale * 4, scale * 4), Vec3(0,-45,0), camPos),
                                     Func(self.PlanetInfoPanel.show))
             zoomInterval.start()
             taskMgr.add(self.followCam, 'infocamTask', extraArgs=['info'], appendTask=True)

@@ -1,8 +1,11 @@
 <Comment> {
-  "egg-texture-cards -o simple_button_maps.egg -p 250,250 normal.png active.png"
+  "egg-texture-cards -o simple_button_maps.egg -p 250,250 normal.png active.png disabled.png"
 }
 <Texture> normal {
   normal.png
+}
+<Texture> disabled {
+  disabled.png
 }
 <Texture> active {
   active.png
@@ -12,35 +15,51 @@
   <Scalar> fps { 2 }
   <VertexPool> vpool {
     <Vertex> 0 {
-      -0.67 0.164 0
+      -0.68 0.176 0
       <UV> { 0 1 }
     }
     <Vertex> 1 {
-      -0.67 -0.164 0
+      -0.68 -0.176 0
       <UV> { 0 0 }
     }
     <Vertex> 2 {
-      0.67 -0.164 0
+      0.68 -0.176 0
       <UV> { 1 0 }
     }
     <Vertex> 3 {
-      0.67 0.164 0
+      0.68 0.176 0
       <UV> { 1 1 }
     }
     <Vertex> 4 {
-      -0.67 0.164 0
+      -0.68 0.176 0
       <UV> { 0 1 }
     }
     <Vertex> 5 {
-      -0.67 -0.164 0
+      -0.68 -0.176 0
       <UV> { 0 0 }
     }
     <Vertex> 6 {
-      0.67 -0.164 0
+      0.68 -0.176 0
       <UV> { 1 0 }
     }
     <Vertex> 7 {
-      0.67 0.164 0
+      0.68 0.176 0
+      <UV> { 1 1 }
+    }
+    <Vertex> 8 {
+      -0.68 0.176 0
+      <UV> { 0 1 }
+    }
+    <Vertex> 9 {
+      -0.68 -0.176 0
+      <UV> { 0 0 }
+    }
+    <Vertex> 10 {
+      0.68 -0.176 0
+      <UV> { 1 0 }
+    }
+    <Vertex> 11 {
+      0.68 0.176 0
       <UV> { 1 1 }
     }
   }
@@ -56,6 +75,13 @@
       <RGBA> { 1 1 1 1 }
       <TRef> { active }
       <VertexRef> { 4 5 6 7 <Ref> { vpool } }
+    }
+  }
+  <Group> disabled {
+    <Polygon> {
+      <RGBA> { 1 1 1 1 }
+      <TRef> { disabled }
+      <VertexRef> { 8 9 10 11 <Ref> { vpool } }
     }
   }
 }
