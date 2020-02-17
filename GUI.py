@@ -8,6 +8,16 @@ from panda3d.core import *
 
 def setUpGui(world):
 
+    # Loading all GUI textures via egg files
+    #---------------------------------------
+    buttonModel = loader.loadModel('models/gui/button2/simple_button_maps.egg')
+    buttonMaps = (buttonModel.find('**/normal'),buttonModel.find('**/active'),
+                  buttonModel.find('**/normal'),buttonModel.find('**/disabled'))
+
+    slotModel = loader.loadModel('models/gui/slots/simple_slot_maps.egg')
+    slotMaps = (slotModel.find('**/normal'),slotModel.find('**/active'),
+                  slotModel.find('**/normal'),slotModel.find('**/disabled'))
+
 
     # Constant visible gui elements
     #------------------------------
@@ -30,36 +40,38 @@ def setUpGui(world):
 
     # All static gui elements for the planet info screen
     #---------------------------------------------------
+    infoPanelMap = loader.loadModel('models/gui/panels/planetinfopanel_maps.egg').find('**/planetinfopanel')
+    
     world.PlanetInfoPanel = DirectFrame(
-        frameColor=(0.2, 0.2, 0.22, 0.9),
-        frameSize=(-0.9, 1.1, -0.65, 0.65),
-        pos=(-0.8, 0, 0))
+        pos=(-0.8, 0, 0), frameColor=(0.2, 0.2, 0.22, 0), frameSize=(-0.9, 1.1, -0.65, 0.65),
+        geom=infoPanelMap, geom_scale=(0.65,0,0.65), geom_pos=(0.1,0,0), enableEdit=1)
     world.PlanetInfoPanel.hide()
 
-    world.PlanetInfoTitle = DirectLabel(text='', pos=(-0.85, 0, 0.5), 
+    world.PlanetInfoTitle = DirectLabel(text='', pos=(0.1, 0, 0.5), 
         text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = world.PlanetInfoPanel, 
-        text_align=TextNode.ALeft, text_scale = 0.13)
+        text_align=TextNode.ACenter, text_scale = 0.13)
 
-    world.PlanetInfoAttributesTable = DirectLabel(text='', pos=(-0.85, 0, 0.4), 
+    world.PlanetInfoAttributesTable = DirectLabel(text='', pos=(-0.85, 0, 0.35), 
         text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = world.PlanetInfoPanel, 
         text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
 
-    world.PlanetInfoRescourceTable = DirectLabel(text='', pos=(-0.85, 0, 0), 
+    world.PlanetInfoRescourceTable = DirectLabel(text='', pos=(-0.85, 0, -0.05), 
         text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = world.PlanetInfoPanel, 
         text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
     
-    world.PlanetInfoGoodsTable = DirectLabel(text='', pos=(-0.85, 0, -0.35), 
+    world.PlanetInfoGoodsTable = DirectLabel(text='', pos=(-0.85, 0, -0.4), 
         text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = world.PlanetInfoPanel, 
         text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
 
-    world.PlanetInfoENRGTable = DirectLabel(text='', pos=(0.28, 0, 0.4), 
+    world.PlanetInfoENRGTable = DirectLabel(text='', pos=(0.28, 0, 0.35), 
         text_fg=(1,1,1,1), frameColor=(0,0,0,0), parent = world.PlanetInfoPanel, 
         text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
 
     world.PlanetInfoCloseButton = DirectButton(text='Close', 
-        pos=(-0.745,0,-0.92), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
-        text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-        command=world.togglePlanetInfoMode, extraArgs=[False], parent=world.PlanetInfoPanel)
+        pos=(-0.68,0,-0.85), scale=0.5, pad=(-0.1, -0.09), frameColor=(0,0,0,0),
+        text_scale=0.15, text_pos=(0,-0.03), text_fg=(1,1,1,1), geom_scale=(0.7,0,1),
+        command=world.togglePlanetInfoMode, extraArgs=[False], parent=world.PlanetInfoPanel,
+        geom=(buttonMaps))
 
     world.PlanetInfoProbeButton = DirectButton(text='Probe', 
         pos=(1.45,0,0.55), pad=(0.055, 0.02), borderWidth=(0.01,0.01),
@@ -72,8 +84,8 @@ def setUpGui(world):
         command=world.showColoniseMission, parent=world.PlanetInfoPanel)
 
     world.PlanetInfoBuildButton = DirectButton(text='Build', 
-        pos=(1.65,0,-0.58), pad=(0.06, 0.05), borderWidth=(0.01,0.01),
-        text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+        pos=(1.65,0,-0.58), scale=0.5, pad=(-0.1, -0.09), frameColor=(0,0,0,0),
+        text_scale=0.15, text_pos=(0, -0.03), text_fg=(1,1,1,1), geom_scale=(0.5,0,1.2), geom=(buttonMaps),
         command=world.togglePlanetBuildMode, extraArgs=[True], parent=world.PlanetInfoPanel)
 
     world.PlanetInfoProblemPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0.9),
@@ -112,8 +124,8 @@ def setUpGui(world):
         command=world.salvageBuilding, parent=world.PlanetBuildDescriptionField, state='disabled')
 
     world.PlanetBuildCloseButton = DirectButton(text='Back', 
-        pos=(-0.26,0,-0.92), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
-        text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
+        pos=(-0.18,0,-0.9), scale=0.5, pad=(-0.1, -0.09), frameColor=(0,0,0,0),
+        text_scale=0.15, text_pos=(0, -0.03), text_fg=(1,1,1,1), geom_scale=(0.7,0,1), geom=(buttonMaps),
         command=world.togglePlanetBuildMode, extraArgs=[False], parent=world.PlanetBuildPanel)
 
 
@@ -168,45 +180,56 @@ def setUpGui(world):
     world.PlanetBuildSlotContainer = DirectFrame(pos=(1.45,0,0), frameColor=(0.5,0.5,0.5,1))
     world.PlanetBuildSlotContainer.reparentTo(world.PlanetBuildPanel)
 
-    world.PlanetBuildSlot1 = DirectButton(text='R1', 
-        pos=(0.27,0,0.5), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-        text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(1,1,1,1), text_roll=45,
-        command=world.switchBuildSlot, parent=world.PlanetBuildSlotContainer)
-    world.PlanetBuildSlot1['extraArgs'] = [world.PlanetBuildSlot1]
-    world.PlanetBuildSlot1Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), text_bg=(0.2,0.2,0.2,0.9),
-        frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=world.PlanetBuildSlot1)
 
-    world.PlanetBuildSlot2 = DirectButton(text='R2', 
-        pos=(0.12,0,0.29), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-        text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(1,1,1,1), text_roll=45,
-        command=world.switchBuildSlot, parent=world.PlanetBuildSlotContainer)
-    world.PlanetBuildSlot2['extraArgs'] = [world.PlanetBuildSlot2]
-    world.PlanetBuildSlot2Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
-        frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=world.PlanetBuildSlot2)
+    world.PlanetBuildSlotButtons = [
 
-    world.PlanetBuildSlot3 = DirectButton(text='R3', 
-        pos=(0.05,0,0), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-        text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(1,1,1,1), text_roll=45,
-        command=world.switchBuildSlot, parent=world.PlanetBuildSlotContainer)
-    world.PlanetBuildSlot3['extraArgs'] = [world.PlanetBuildSlot3]
-    world.PlanetBuildSlot3Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
-        frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=world.PlanetBuildSlot3)
+        DirectRadioButton(text='R1', 
+            pos=(0.27,0,0.53), frameColor=(0,0,0,0), frameSize=(-0.035,0.035,-0.035,0.035), indicatorValue=0, boxPlacement='center',
+            text_scale=0.08, text_pos=(-0.22, -0.02), text_fg=(1,1,1,1), boxGeomScale=(0.18,0,0.18), boxGeom=(slotMaps), boxBorder=-0.245,
+            command=world.switchBuildSlot, variable=world.ActiveBuildSlot, value=['1'], parent=world.PlanetBuildSlotContainer, scale=0.9),
 
-    world.PlanetBuildSlot4 = DirectButton(text='R4', 
-        pos=(0.12,0,-0.29), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-        text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-        command=world.switchBuildSlot, parent=world.PlanetBuildSlotContainer, state='disabled')
-    world.PlanetBuildSlot4['extraArgs'] = [world.PlanetBuildSlot4]
-    world.PlanetBuildSlot4Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
-        frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=world.PlanetBuildSlot4)
+        DirectRadioButton(text='R2', 
+            pos=(0.12,0,0.29), frameColor=(0,0,0,0), frameSize=(-0.035,0.035,-0.035,0.035), indicatorValue=0, boxPlacement='center',
+            text_scale=0.08, text_pos=(-0.22, -0.02), text_fg=(1,1,1,1), boxGeomScale=(0.18,0,0.18), boxGeom=(slotMaps), boxBorder=-0.245,
+            command=world.switchBuildSlot, variable=world.ActiveBuildSlot, value=['2'], parent=world.PlanetBuildSlotContainer, scale=0.9),
 
-    world.PlanetBuildSlot5 = DirectButton(text='R5', 
-        pos=(0.27,0,-0.51), hpr=(0,0,45), pad=(0.05, 0.05), borderWidth=(0.02,0.02),
-        text_scale=0.06, frameColor=(0.2,0.2,0.2,1), text_fg=(0.5,0.5,0.5,1), text_roll=45,
-        command=world.switchBuildSlot, parent=world.PlanetBuildSlotContainer, state='disabled')
-    world.PlanetBuildSlot5['extraArgs'] = [world.PlanetBuildSlot5]
-    world.PlanetBuildSlot5Lable = DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
-        frameColor=(0,0,0,0), hpr=(0,0,-45), pos=(-0.07,0,0.07), parent=world.PlanetBuildSlot5)
+        DirectRadioButton(text='R3', 
+            pos=(0.05,0,0), frameColor=(0,0,0,0), frameSize=(-0.035,0.035,-0.035,0.035), indicatorValue=0, boxPlacement='center',
+            text_scale=0.08, text_pos=(-0.22, -0.02), text_fg=(1,1,1,1), boxGeomScale=(0.18,0,0.18), boxGeom=(slotMaps), boxBorder=-0.245,
+            command=world.switchBuildSlot, variable=world.ActiveBuildSlot, value=['3'], parent=world.PlanetBuildSlotContainer, scale=0.9),
+
+        DirectRadioButton(text='R4', 
+            pos=(0.12,0,-0.29), frameColor=(0,0,0,0), frameSize=(-0.035,0.035,-0.035,0.035), indicatorValue=0, boxPlacement='center',
+            text_scale=0.08, text_pos=(-0.22, -0.02), text_fg=(1,1,1,1), boxGeomScale=(0.18,0,0.18), boxGeom=(slotMaps), boxBorder=-0.245,
+            command=world.switchBuildSlot, variable=world.ActiveBuildSlot, value=['4'], parent=world.PlanetBuildSlotContainer, scale=0.9),
+
+        DirectRadioButton(text='R5', 
+            pos=(0.27,0,-0.53), frameColor=(0,0,0,0), frameSize=(-0.035,0.035,-0.035,0.035), indicatorValue=0, boxPlacement='center',
+            text_scale=0.08, text_pos=(-0.22, -0.02), text_fg=(1,1,1,1), boxGeomScale=(0.18,0,0.18), boxGeom=(slotMaps), boxBorder=-0.245,
+            command=world.switchBuildSlot, variable=world.ActiveBuildSlot, value=['5'], parent=world.PlanetBuildSlotContainer, scale=0.9)
+    ]
+
+    for button in world.PlanetBuildSlotButtons:
+        button.setOthers(world.PlanetBuildSlotButtons)
+
+    world.PlanetBuildSlotLabels = [
+
+        DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1), text_bg=(0.2,0.2,0.2,0.9),
+            frameColor=(0,0,0,0), pos=(0,0,0.07), parent=world.PlanetBuildSlotButtons[0]),
+
+        DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
+            frameColor=(0,0,0,0), pos=(0,0,0.07), parent=world.PlanetBuildSlotButtons[1]),
+
+        DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
+            frameColor=(0,0,0,0), pos=(0,0,0.07), parent=world.PlanetBuildSlotButtons[2]),
+
+        DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
+            frameColor=(0,0,0,0), pos=(0,0,0.07), parent=world.PlanetBuildSlotButtons[3]),
+
+        DirectLabel(text='', text_scale=0.06, text_fg=(1,1,1,1),  text_bg=(0.2,0.2,0.2,0.9),
+            frameColor=(0,0,0,0), pos=(0,0,0.07), parent=world.PlanetBuildSlotButtons[4])
+    ]
+
 
     world.PlanetBuildSlotInfo = DirectFrame(pos=(0.4,0,0.35), frameSize=(0,0.9,-0.7,0), frameColor=(0.2,0.2,0.25,0.8),
         parent=world.PlanetBuildSlotContainer, text_scale=0.03, text_fg=(1,1,1,1))

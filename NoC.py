@@ -63,8 +63,9 @@ class World(DirectObject):
         self.PlanetInfoModeOn = False
         self.PlanetBuildModeOn = False
         self.PlanetBuildSlotButtons = []
+        self.PlanetBuildSlotLabels = []
         self.ActiveBuildSection  = 'RESC' #Is either RESC, PROD, ENRG, DEV or HAB
-        self.ActiveBuildSlot = None
+        self.ActiveBuildSlot = [None]
         self.ActiveBlueprint = None
         self.capitalPlanet = None
 
@@ -400,11 +401,7 @@ class World(DirectObject):
             mySeq.start()
             self.fillBuildPanel()
 
-    def switchBuildSlot(self, newSlot):
-        self.clearSelectedBuildSlot()
-        self.ActiveBuildSlot = newSlot
-        newSlot['relief'] = 'sunken'
-        newSlot['frameColor']  = (0.25,0.25,0.25,1)
+    def switchBuildSlot(self):
 
         self.checkForConstructButton()
         self.checkForSalvageAndInfo()
@@ -427,7 +424,7 @@ class World(DirectObject):
         planet=self.selectedObjectName
         section=self.ActiveBuildSection
 
-        if self.ActiveBlueprint != None and self.ActiveBuildSlot != None and self.planetDB[planet]['slots'][section][self.ActiveBuildSlot['text']] == None:
+        if self.ActiveBlueprint != None and self.ActiveBuildSlot[0] != None and self.planetDB[planet]['slots'][section][self.ActiveBuildSlot[0]] == None:
             self.PlanetBuildConstructButton['state']='normal'
             self.PlanetBuildConstructButton['text_fg']=(1,1,1,1)
         else:
@@ -438,11 +435,11 @@ class World(DirectObject):
         planet=self.selectedObjectName
         section=self.ActiveBuildSection
 
-        if self.ActiveBuildSlot != None and self.planetDB[planet]['slots'][section][self.ActiveBuildSlot['text']] != None:
+        if self.ActiveBuildSlot[0] != None and self.planetDB[planet]['slots'][section][self.ActiveBuildSlot[0]] != None:
             self.PlanetBuildSalvageButton['state']='normal'
             self.PlanetBuildSalvageButton['text_fg']=(1,1,1,1)
             self.PlanetBuildSlotInfo.show()
-            self.fillSlotInfo(planet, section, self.ActiveBuildSlot['text'])
+            self.fillSlotInfo(planet, section, self.ActiveBuildSlot[0])
         else:
             self.PlanetBuildSalvageButton['state']='disabled'
             self.PlanetBuildSalvageButton['text_fg']=(0.5,0.5,0.5,1)
@@ -461,7 +458,7 @@ class World(DirectObject):
     def constructBuilding(self):
         planet = self.selectedObjectName
         section = self.ActiveBuildSection
-        slot = self.ActiveBuildSlot['text']
+        slot = self.ActiveBuildSlot[0]
         blueprint = self.ActiveBlueprint['text']
         price = self.buildingsDB[section][blueprint]['Price']
         enrgCap = self.planetDB[planet]['enrgCap']
@@ -538,7 +535,7 @@ class World(DirectObject):
 
     def salvageBuilding(self):
             planet = self.selectedObjectName
-            slot = self.ActiveBuildSlot['text']
+            slot = self.ActiveBuildSlot[0]
             section = self.ActiveBuildSection
             blueprint = self.planetDB[planet]['slots'][section][slot]['name']
             price = self.buildingsDB[section][blueprint]['Price']
@@ -572,41 +569,23 @@ class World(DirectObject):
         data = self.planetDB[planet]['slots'][section]
         fl = section[0]
 
-        if data[fl+'1'] != None: 
-            self.PlanetBuildSlot1Lable['text'] = data[fl+'1']['name']
-            if data[fl+'1']['gotProblem']: self.PlanetBuildSlot1Lable['text']+= ' \n/!\PROBLEM/!\\'
-        else: self.PlanetBuildSlot1Lable['text'] = ''   
-        self.PlanetBuildSlot1['text'] = section[0] + '1'
-
-        if data[fl+'2'] != None: 
-            self.PlanetBuildSlot2Lable['text'] = data[fl+'2']['name']
-            if data[fl+'2']['gotProblem']: self.PlanetBuildSlot2Lable['text']+= ' \n/!\PROBLEM/!\\'
-        else: self.PlanetBuildSlot2Lable['text'] = '' 
-        self.PlanetBuildSlot2['text'] = section[0] + '2'
-
-        if data[fl+'3'] != None: 
-            self.PlanetBuildSlot3Lable['text'] = data[fl+'3']['name']
-            if data[fl+'3']['gotProblem']: self.PlanetBuildSlot3Lable['text']+= ' \n/!\PROBLEM/!\\'
-        else: self.PlanetBuildSlot3Lable['text'] = '' 
-        self.PlanetBuildSlot3['text'] = section[0] + '3'
-
-        if data[fl+'4'] != None: 
-            self.PlanetBuildSlot4Lable['text'] = data[fl+'4']['name']
-            if data[fl+'4']['gotProblem']: self.PlanetBuildSlot4Lable['text']+= ' \n/!\PROBLEM/!\\'
-        else: self.PlanetBuildSlot4Lable['text'] = '' 
-        self.PlanetBuildSlot4['text'] = section[0] + '4'
-
-        if data[fl+'5'] != None: 
-            self.PlanetBuildSlot5Lable['text'] = data[fl+'5']['name']
-            if data[fl+'5']['gotProblem']: self.PlanetBuildSlot5Lable['text']+= ' \n/!\PROBLEM/!\\'
-        else: self.PlanetBuildSlot5Lable['text'] = '' 
-        self.PlanetBuildSlot5['text'] = section[0] + '5'
+        ctr=0
+        for button in self.PlanetBuildSlotButtons:
+            buttonLabel = self.PlanetBuildSlotLabels[ctr]
+            
+            if data[str(ctr+1)] != None:
+                buttonLabel['text'] = data[str(ctr+1)]['name']
+                if data[str(ctr+1)]['gotProblem']: buttonLabel['text']+= '\n/!\PROBLEM/!\\'
+            else: buttonLabel['text'] = ''
+            button['text'] = fl + str(ctr+1)
+            ctr+=1
 
     def clearSelectedBuildSlot(self):
-        if self.ActiveBuildSlot != None:
-            self.ActiveBuildSlot['relief']='raised'
-            self.ActiveBuildSlot['frameColor'] = (0.2,0.2,0.2,1)
-            self.ActiveBuildSlot = None
+        slot = self.ActiveBuildSlot[0]
+
+        if slot != None:
+            self.ActiveBuildSlot[0] = None
+            self.PlanetBuildSlotButtons[int(slot)-1]['indicatorValue']=0
 
     def updateQuickInfoTask(self, planet, task):
         athm = self.planetDB[planet]['athm']
@@ -889,11 +868,11 @@ class World(DirectObject):
     def prepareSlotsInPlanetDB(self):
         for planet, data in self.planetDB.items():
             self.planetDB[planet].update({'slots':{
-                'RESC':{'R1':None, 'R2':None, 'R3':None, 'R4':None, 'R5':None},
-                'PROD':{'P1':None, 'P2':None, 'P3':None, 'P4':None, 'P5':None},
-                'ENRG':{'E1':None, 'E2':None, 'E3':None, 'E4':None, 'E5':None},
-                'DEV': {'D1':None, 'D2':None, 'D3':None, 'D4':None, 'D5':None},
-                'HAB': {'H1':None, 'H2':None, 'H3':None, 'H4':None, 'H5':None}
+                'RESC':{'1':None, '2':None, '3':None, '4':None, '5':None},
+                'PROD':{'1':None, '2':None, '3':None, '4':None, '5':None},
+                'ENRG':{'1':None, '2':None, '3':None, '4':None, '5':None},
+                'DEV': {'1':None, '2':None, '3':None, '4':None, '5':None},
+                'HAB': {'1':None, '2':None, '3':None, '4':None, '5':None}
             }})
 
     def rotatePlanets(self):
