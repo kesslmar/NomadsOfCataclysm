@@ -22,6 +22,8 @@ import sys
 import random
 import math
 import GUI
+from planetInfoView import PlanetInfoView
+from planetBuildView import PlanetBuildView
 
 base = ShowBase()
 wp = WindowProperties()
@@ -51,15 +53,20 @@ class World(DirectObject):
         self.camSpeed = 10
         self.zoomSpeed = 5
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
+        
+        # Global game balance variables
         self.PopulationTimeDelta = 3
         self.taxFactor = 0.1
         self.salvageFactor = 0.75
         self.foodConsumingFactor = 0.75
         self.goodsCap = 1000
 
-        self.selectedObject = None
-        self.selectedObjectName = None
-        self.followObjectScale = 1
+        #self.selectedObject = None
+        #self.selectedObjectName = None
+        #self.followObjectScale = 1
+        self.NewPlanetInfoView = None
+        self.NewPlanetBuildView = None
+
         self.PlanetInfoModeOn = False
         self.PlanetBuildModeOn = False
         self.PlanetBuildSlotButtons = []
@@ -84,7 +91,10 @@ class World(DirectObject):
         base.cTrav.addCollider(self.pickerNP, self.collQueue)
 
         # Set up the start screen
+        self.setUpGlobalGuiMaps()
         GUI.setUpGui(self)
+        self.NewPlanetInfoView = PlanetInfoView(self)
+        self.NewPlanetBuildView = PlanetBuildView(self)
         self.loadPlanets()      
         self.rotatePlanets()
         self.fillBuildingsDB()
@@ -155,16 +165,13 @@ class World(DirectObject):
                 zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]-self.zoomSpeed,camPos[2]+self.zoomSpeed,), camPos)
                 zoomInterval.start()
 
-    def followCam(self, mode, task):
-        pos = self.selectedObject.getPos(base.render)
+    def followCam(self, obj, scale, mode, task):
+        pos = obj.getPos(base.render)
+
         if mode=='info':
-            camera.setPos(pos[0]-self.followObjectScale * 1.25, 
-                         pos[1]-self.followObjectScale * 4, 
-                         self.followObjectScale * 4)
+            camera.setPos(pos[0]-scale * 1.25, pos[1]-scale * 4, scale * 4)
         if mode=='build':
-            camera.setPos(pos[0]-self.followObjectScale * 0.9, 
-                         pos[1]-self.followObjectScale * 3.4, 
-                         0)
+            camera.setPos(pos[0]-scale * 0.9, pos[1]-scale * 3.4, 0)
         return task.cont
 
     def handleMouseClick(self):
@@ -185,12 +192,21 @@ class World(DirectObject):
                                     'Population: ' +str(self.systemPopulation))
         return task.cont
 
-    def createProblemDialog(self, problemText):
-        self.ProblemDialog = OkDialog(
-            dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),
-            frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap)
+    def createProblemDialog(self, problemText, form='ok', function=lambda: None):
+        if form == 'ok':
+            self.ProblemDialog = OkDialog(
+                dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),
+                frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
+                extraArgs=[function])
+        elif form == 'yesNo':
+            self.ProblemDialog = YesNoDialog(
+                dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),
+                frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
+                extraArgs=[function])
 
-    def cleanupProblemDialog(self, args):
+    def cleanupProblemDialog(self, value, function):
+        if value:
+            function()
         self.ProblemDialog.cleanup()
 
 
@@ -198,23 +214,23 @@ class World(DirectObject):
     #------------------------------------------------
 
     def togglePlanetInfoMode(self, mode=False, obj=None):
+        
         if mode:
+            objName = obj.getNetTag('name')
+            objScale = self.planetDB[objName]['scale']
             self.MapViewPanel.hide()
             self.PlanetInfoModeOn = True
-            self.selectedObject = obj
-            self.selectedObjectName = obj.getNetTag('name')
-            self.followObjectScale = self.planetDB[obj.getNetTag('name')]['scale']
-            pos = self.selectedObject.getPos(base.render)
+
+            pos = obj.getPos(base.render)
             camPos = camera.getPos()
-            self.clearPlanetInfo()
-            self.fillPlanetInfo()
-            self.checkForInfoViewButtons()
-            zoomInterval = Sequence(camera.posInterval(0.3, Point3(pos[0]-self.followObjectScale * 1.25,
-                                                          pos[1]-self.followObjectScale * 4, 
-                                                          self.followObjectScale * 4), camPos), Func(self.PlanetInfoPanel.show))
+            zoomInterval = Sequence(
+                Func(self.NewPlanetInfoView.reset, obj),
+                camera.posInterval(0.3, Point3(pos[0]-objScale * 1.25, pos[1]-objScale * 4, objScale * 4), camPos),
+                Func(self.NewPlanetInfoView.show)
+            )
             zoomInterval.start()
-            taskMgr.add(self.followCam, 'infocamTask', extraArgs=['info'], appendTask=True)
-            taskMgr.doMethodLater(1, self.updatePlanetInfoTask, 'updatePlanetInfoTask')
+            taskMgr.add(self.followCam, 'infocamTask', extraArgs=[obj, objScale, 'info'], appendTask=True)
+            
         else:
             self.PlanetInfoModeOn = False
             taskMgr.remove('infocamTask')
@@ -222,89 +238,7 @@ class World(DirectObject):
             zoomInterval = Sequence(camera.posInterval(0.3, Point3(0, -30, 30), camPos), Func(self.MapViewPanel.show))
             zoomInterval.start()
             taskMgr.remove('updatePlanetInfoTask')
-            self.PlanetInfoPanel.hide()
-            self.clearPlanetInfo()
-            self.selectedObject = None
-            self.followObjectScale = 1
-
-    def fillPlanetInfo(self):
-        # Fills the content of the planet info gui every time a planet gets selected
-
-        objID = self.selectedObjectName
-        self.PlanetInfoTitle['text']=self.planetDB[objID]['name']
-
-        if self.planetDB[objID]['type']=='Star' or self.planetDB[objID]['probed']:
-            PlanetInfoAttributesText = (
-                'Type:\t\t' + str(self.planetDB[objID]['type']) + '\n'
-                'Diameter:\t\t' + str(self.planetDB[objID]['scale'] * 10**5) + '\n')
-            if self.planetDB[objID]['type'] != "Star":
-                PlanetInfoAttributesText += (
-                    'Distance to Sun:\t' + str(self.planetDB[objID]['dist'] * 10**7) + '\n'
-                    'Athmosphere:\t' + str(self.planetDB[objID]['athm']) + '\n'
-                    'Windstrength:\t' + str(self.planetDB[objID]['wind']) + '\n')
-
-            self.PlanetInfoAttributesTable['text']=PlanetInfoAttributesText
-
-
-            if self.planetDB[objID]['type'] != "Star":
-                PlanetInfoRescourceText = 'Rescources:\n'
-                for k,v in self.planetDB[objID]['resc'].items():
-                    PlanetInfoRescourceText += k + ':\t\t' + str(v) + '\n'
-
-                self.PlanetInfoRescourceTable['text']=PlanetInfoRescourceText
-
-                if 'goods' in self.planetDB[objID]:
-                    PlanetInfoGoodsText = 'Goods:\n'
-                    for k,v in self.planetDB[objID]['goods'].items():
-                        PlanetInfoGoodsText += k + ':\t' + str(v) + '\n'
-
-                    self.PlanetInfoGoodsTable['text']=PlanetInfoGoodsText
-                
-                self.PlanetInfoENRGTable['text']=(
-                    'Energy capacity:\t' + str(self.planetDB[objID]['enrgCap']) + '\n'
-                    'Energy usage:\t' + str(self.planetDB[objID]['enrgUsg']) + '\n\n'
-                    
-                    'Habitation capacity:\t' + str(self.planetDB[objID]['habCap']) + '\n'
-                    'Population count:\t' + str(self.planetDB[objID]['pop']) + '\n\n'
-
-                    'Per Capita GDP:\t' + str(self.taxFactor)
-                )
-        else:
-            self.PlanetInfoAttributesTable['text']='???'
-
-    def updatePlanetInfoTask(self, task):
-        self.fillPlanetInfo()
-        return task.again
-
-    def clearPlanetInfo(self):
-        self.PlanetInfoTitle['text']='Unknown'
-        self.PlanetInfoAttributesTable['text']=''
-        self.PlanetInfoRescourceTable['text']=''
-        self.PlanetInfoGoodsTable['text']=''
-        self.PlanetInfoENRGTable['text']=''
-
-    def checkForInfoViewButtons(self):
-        planet = self.selectedObjectName
-        if self.planetDB[planet]['type'] == 'Star':
-            self.PlanetInfoBuildButton.hide()
-            self.PlanetInfoColoniseButton.hide()
-            self.PlanetInfoProbeButton.hide()
-            return
-        
-        if self.planetDB[planet]['colonised']:
-            self.PlanetInfoBuildButton.show()
-            self.PlanetInfoColoniseButton.hide()
-            self.PlanetInfoProbeButton.hide()
-        elif self.planetDB[planet]['probed']:
-            self.PlanetInfoBuildButton.hide()
-            self.PlanetInfoColoniseButton.show()
-            self.PlanetInfoProbeButton.hide()
-        else:
-            self.PlanetInfoBuildButton.hide()
-            self.PlanetInfoColoniseButton.hide()
-            self.PlanetInfoProbeButton.show()
-
-    
+            self.NewPlanetInfoView.hide()
 
     # Planet Build View and all its functions
     #----------------------------------------
@@ -723,37 +657,18 @@ class World(DirectObject):
         self.systemPopulation = wholePop
         return task.again
 
-    def calcDistanceBetweenPlanets(self, planet1, planet2):
-        pos1 = planet1.getPos(base.render)
-        pos2 = planet2.getPos(base.render)
-        diffX = abs(pos1[0] - pos2[0])
-        diffY = abs(pos1[1] - pos2[1])
-        dist = math.sqrt(diffX**2 + diffY**2)
-        return dist
 
-    def showProbeMission(self):
-        planet1 = self.capitalPlanet
-        planet2 = self.selectedObject
-        name = self.selectedObjectName
-        dist = round(self.calcDistanceBetweenPlanets(planet1, planet2),3)
-        time = round(dist * 15)
-        cost = 500 + round(dist * 67)
-        missionText = "Probe misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
-        self.createProblemDialog(missionText)
-
-    def showColoniseMission(self):
-        planet1 = self.capitalPlanet
-        planet2 = self.selectedObject
-        name = self.selectedObjectName
-        dist = round(self.calcDistanceBetweenPlanets(planet1, planet2),3)
-        time = round(dist * 30)
-        cost = 3900 + round(dist * 123)
-        missionText = "Colonise misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
-        self.createProblemDialog(missionText)
 
     #****************************************
     #       Initialisation Functions        *
     #****************************************
+
+    def setUpGlobalGuiMaps(self):
+        self.buttonModel = loader.loadModel('models/gui/buttons/simple_button_maps.egg')
+        self.buttonMaps = (self.buttonModel.find('**/normal'),self.buttonModel.find('**/active'),
+                  self.buttonModel.find('**/normal'),self.buttonModel.find('**/disabled'))
+
+        self.infoDialogPanelMap = loader.loadModel('models/gui/panels/infodialogpanel_maps.egg').find('**/infodialogpanel')
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
