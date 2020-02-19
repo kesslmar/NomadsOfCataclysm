@@ -96,7 +96,7 @@ class World(DirectObject):
 
         self.NewPlanetInfoView = PlanetInfoView(self)
         self.NewPlanetBuildView = PlanetBuildView(self)
-        
+
         self.loadPlanets()      
         self.rotatePlanets()
         self.fillBuildingsDB()
@@ -194,7 +194,7 @@ class World(DirectObject):
                                     'Population: ' +str(self.systemPopulation))
         return task.cont
 
-    def createProblemDialog(self, problemText, form='ok', function=lambda: None):
+    def createProblemDialog(self, problemText, form='ok', function=lambda: None, args=[]):
         if form == 'ok':
             self.ProblemDialog = OkDialog(
                 dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),
@@ -204,11 +204,11 @@ class World(DirectObject):
             self.ProblemDialog = YesNoDialog(
                 dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),
                 frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
-                extraArgs=[function])
+                extraArgs=[function, args])
 
-    def cleanupProblemDialog(self, value, function):
+    def cleanupProblemDialog(self, value, function, args):
         if value:
-            function()
+            function(*args)
         self.ProblemDialog.cleanup()
 
 
@@ -248,88 +248,6 @@ class World(DirectObject):
 
     # Diverse collection of gameplay functions and tasks
     #---------------------------------------------------
-
-    def extractRescourceTask(self, celObj, section, slot, good, incVal, task):
-        
-        if not (good in self.planetDB[celObj]['goods']):
-            self.planetDB[celObj]['goods'].update({good:0})
-        
-        if self.planetDB[celObj]['enrgCap'] < self.planetDB[celObj]['enrgUsg']:
-            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Not enough energy to continue extraction'
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-        elif self.planetDB[celObj]['goods'][good] >= self.goodsCap:
-            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Storage is full'
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-        else:
-            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
-                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
-                self.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-            self.planetDB[celObj]['goods'][good]+=incVal
-        
-        return task.again
-
-    def processGoodTask(self, celObj, section, slot, inGood, outGood, incVal, decVal, task):
-
-        if not (inGood in self.planetDB[celObj]['goods']) or self.planetDB[celObj]['goods'][inGood] < decVal:
-            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue production'.format(inGood)
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-        elif self.planetDB[celObj]['enrgCap'] < self.planetDB[celObj]['enrgUsg']:
-            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Not enough energy to continue production'
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-        elif self.planetDB[celObj]['goods'][outGood] >= self.goodsCap:
-            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Storage is full'
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-        else:
-            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
-                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
-                self.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-                
-            self.planetDB[celObj]['goods'][inGood]-=decVal
-            if not (outGood in self.planetDB[celObj]['goods']):
-                self.planetDB[celObj]['goods'].update({outGood:0})
-            self.planetDB[celObj]['goods'][outGood]+=incVal
-        
-        return task.again
-
-    def consumeGoodTask(self, celObj, section, slot, good, decVal, incVal, task):
-
-        if not (good in self.planetDB[celObj]['goods']) or self.planetDB[celObj]['goods'][good] < decVal:
-            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue service'.format(good)
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-                if section == 'ENRG': self.planetDB[celObj]['enrgCap'] -= incVal
-        else:
-            if self.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
-                self.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
-                self.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-                if section == 'ENRG': self.planetDB[celObj]['enrgCap'] += incVal
-            self.planetDB[celObj]['goods'][good]-=decVal
-
-        return task.again
-
     def populatePlanetTask(self, planet, task):
         habProblem = self.planetDB[planet]['habCap'] <= self.planetDB[planet]['pop']
         foodProblem = (not('Vegetable crates' in self.planetDB[planet]['goods']) or 
@@ -358,7 +276,8 @@ class World(DirectObject):
         self.systemPopulation = wholePop
         return task.again
 
-
+    def addMessage(self, planet, id, mType, text, value):
+        self.planetDB[planet.getNetTag('name')]['messages'].update({id: {'type':mType, 'text':text, 'value':value}})
 
     #****************************************
     #       Initialisation Functions        *
@@ -403,7 +322,7 @@ class World(DirectObject):
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,         'probed':False, 'colonised':False,
             'resc':{'Coal':'Common', 'Iron':'Common'},
-            'goods':{} }})
+            'goods':{},         'messages':{} }})
         self.mercury = loader.loadModel("models/planet_sphere")
         self.mercury_tex = loader.loadTexture("models/mercury_1k_tex.jpg")
         self.mercury.setTexture(self.mercury_tex, 1)
@@ -419,7 +338,7 @@ class World(DirectObject):
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,         'probed':False, 'colonised':False,
             'resc':{'Coal':'Common', 'Uranium':'Normal'},
-            'goods':{} }})
+            'goods':{},         'messages':{} }})
         self.venus = loader.loadModel("models/planet_sphere")
         self.venus_tex = loader.loadTexture("models/venus_1k_tex.jpg")
         self.venus.setTexture(self.venus_tex, 1)
@@ -435,7 +354,7 @@ class World(DirectObject):
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,         'probed':True, 'colonised':False,
             'resc':{'Gemstone':'Rare', 'Iron':'Rare'},
-            'goods':{} }})
+            'goods':{},         'messages':{1:{'type':'problem', 'text':'Simple test Message', 'value':69}} }})
         self.mars = loader.loadModel("models/planet_sphere")
         self.mars_tex = loader.loadTexture("models/mars_1k_tex.jpg")
         self.mars.setTexture(self.mars_tex, 1)
@@ -451,7 +370,7 @@ class World(DirectObject):
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':100,         'probed':True, 'colonised':True,
             'resc':{'Iron':'Normal', 'Coal':'Common', 'Uranium':'Rare'}, 
-            'goods':{} }})
+            'goods':{},         'messages':{} }})
         self.earth = loader.loadModel("models/planet_sphere")
         self.earth_tex = loader.loadTexture("models/earth_1k_tex.jpg")
         self.earth.setTexture(self.earth_tex, 1)
@@ -471,7 +390,7 @@ class World(DirectObject):
             'enrgCap':0,        'enrgUsg':0,    'pop':0,
             'habCap':0,         'probed':True, 'colonised':False,
             'resc':{'Coal':'Common', 'Cheese':'Rare'}, 
-            'goods':{} }})
+            'goods':{},         'message':{} }})
         self.moon = loader.loadModel("models/planet_sphere")
         self.moon_tex = loader.loadTexture("models/moon_1k_tex.jpg")
         self.moon.setTexture(self.moon_tex, 1)

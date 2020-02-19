@@ -67,7 +67,7 @@ class PlanetInfoView():
             text_scale=0.15, text_pos=(0, -0.03), text_fg=(1,1,1,1), geom_scale=(0.5,0,1.2), geom=(world.buttonMaps),
             command=self.togglePlanetBuildMode, extraArgs=[True], parent=self.PlanetInfoPanel)
 
-        self.PlanetInfoProblemPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0),
+        self.PlanetInfoMessagePanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0),
             frameSize=(0, 0, 0, 0),pos=(2.33, 0, 0.16), parent=self.PlanetInfoPanel,
             geom=self.problemPanelMap, geom_scale=(0.7,0,0.7), geom_pos=(0,0,0), enableEdit=1)
 
@@ -90,6 +90,7 @@ class PlanetInfoView():
         # Fills the content of the planet info gui every time a planet gets selected
 
         objID = self.selectedObjectName
+        self.loadMessages()
         self.PlanetInfoTitle['text']=self.planetData['name']
 
         if self.planetData['type']=='Star' or self.planetData['probed']:
@@ -168,6 +169,20 @@ class PlanetInfoView():
             self.PlanetInfoColoniseButton.hide()
             self.PlanetInfoProbeButton.show()
 
+    def loadMessages(self):
+        i=0
+        for id, message in self.world.planetDB[self.selectedObjectName]['messages'].items():
+            mText = message['text'] + '\n' + str(message['value'])
+            
+            msgPanel = DirectFrame(
+                pos=(0, 0, 0.35-i*0.21), frameColor=(0.2, 0.2, 0.22, 0.9), frameSize=(-0.2, 0.2, -0.1, 0.1),
+                parent=self.PlanetInfoMessagePanel, text=mText, text_scale=0.04, text_fg = (1,1,1,1))
+            i+=1
+
+
+
+
+
     def showProbeMission(self):
             planet1 = self.world.capitalPlanet
             planet2 = self.selectedObject
@@ -178,6 +193,14 @@ class PlanetInfoView():
             missionText = "Probe misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
             self.world.createProblemDialog(missionText, 'yesNo', self.probeMissionTask)
 
+    def startProbeMission(self):
+        self.world.createProblemDialog('Probe Mission launched!')
+        taskMgr.add(self.coloniseMissionTask, 'coloniseMissionTask')
+
+    def probeMissionTask(self, planet1, planet2, name, dist, time, cost, task):
+        print('Probe mission started!')
+
+
     def showColoniseMission(self):
         planet1 = self.world.capitalPlanet
         planet2 = self.selectedObject
@@ -186,13 +209,21 @@ class PlanetInfoView():
         time = round(dist * 30)
         cost = 3900 + round(dist * 123)
         missionText = "Colonise misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
-        self.world.createProblemDialog(missionText, 'yesNo', self.coloniseMissionTask)
+        self.world.createProblemDialog(missionText, 'yesNo', self.startColoniseMission, [planet1, planet2, name, dist, time, cost])
 
-    def probeMissionTask(self):
-        print('Probe mission started!')
+    def startColoniseMission(self, planet1, planet2, name, dist, time, cost):
+        id = 'colonise' + planet2.getNetTag('name')
+        self.world.createProblemDialog('Colonise Mission to {} launched!'.format(name))
+        self.world.addMessage(planet2, id, 'info', 'Colonise mission on the way', time)
+        taskMgr.doMethodLater(1, self.coloniseMissionTask, 'coloniseMissionTask', extraArgs=[planet1, planet2, id, name, dist, time, cost], appendTask=True)
 
-    def coloniseMissionTask(self):
-        print('Colonise mission started!')
+    def coloniseMissionTask(self, planet1, planet2, id, name, dist, time, cost, task):
+        if self.world.planetDB[planet2.getNetTag('name')]['messages'][id]['value'] >= 0:
+            self.world.planetDB[planet2.getNetTag('name')]['messages'][id]['value']-=1
+        else:
+            print('Elon would be proud!')
+        return task.again
+
 
     def calcDistanceBetweenPlanets(self, planet1, planet2):
         pos1 = planet1.getPos(base.render)
@@ -201,7 +232,6 @@ class PlanetInfoView():
         diffY = abs(pos1[1] - pos2[1])
         dist = math.sqrt(diffX**2 + diffY**2)
         return dist
-
 
     def togglePlanetBuildMode(self, mode=False):
         pos = self.selectedObject.getPos(base.render)

@@ -389,8 +389,6 @@ class PlanetBuildView():
         return task.again
 
 
-
-
     def createGui(self):
 
         self.PlanetBuildPanel = DirectFrame(
