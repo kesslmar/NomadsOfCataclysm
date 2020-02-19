@@ -1,9 +1,11 @@
 from direct.showbase.DirectObject import DirectObject
 from direct.gui.DirectGui import *
 from direct.gui.OnscreenImage import OnscreenImage
+from direct.interval.IntervalGlobal import *
 from panda3d.core import *
 
 import math
+from planetBuildView import PlanetBuildView
 
 
 class PlanetInfoView():
@@ -14,6 +16,7 @@ class PlanetInfoView():
         self.selectedObjectName = None
         self.planetData = None
         self.followObjectScale = None
+        self.NewPlanetBuildView = None
 
         self.infoPanelMap = loader.loadModel('models/gui/panels/planetinfopanel_maps.egg').find('**/planetinfopanel')
         self.problemPanelMap = loader.loadModel('models/gui/panels/planetproblempanel_maps.egg').find('**/planetproblempanel')
@@ -62,7 +65,7 @@ class PlanetInfoView():
         self.PlanetInfoBuildButton = DirectButton(text='Build', 
             pos=(1.65,0,-0.58), scale=0.5, pad=(-0.1, -0.09), frameColor=(0,0,0,0),
             text_scale=0.15, text_pos=(0, -0.03), text_fg=(1,1,1,1), geom_scale=(0.5,0,1.2), geom=(world.buttonMaps),
-            command=world.togglePlanetBuildMode, extraArgs=[True], parent=self.PlanetInfoPanel)
+            command=self.togglePlanetBuildMode, extraArgs=[True], parent=self.PlanetInfoPanel)
 
         self.PlanetInfoProblemPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0),
             frameSize=(0, 0, 0, 0),pos=(2.33, 0, 0.16), parent=self.PlanetInfoPanel,
@@ -77,6 +80,7 @@ class PlanetInfoView():
         self.selectedObjectName = obj.getNetTag('name')
         self.planetData = self.world.planetDB[self.selectedObjectName]
         self.followObjectScale = self.planetData['scale']
+        self.NewPlanetBuildView = self.world.NewPlanetBuildView
 
         self.fill()
         taskMgr.doMethodLater(1, self.UpdateTask, 'updatePlanetInfoTask')
@@ -190,7 +194,6 @@ class PlanetInfoView():
     def coloniseMissionTask(self):
         print('Colonise mission started!')
 
-
     def calcDistanceBetweenPlanets(self, planet1, planet2):
         pos1 = planet1.getPos(base.render)
         pos2 = planet2.getPos(base.render)
@@ -198,3 +201,41 @@ class PlanetInfoView():
         diffY = abs(pos1[1] - pos2[1])
         dist = math.sqrt(diffX**2 + diffY**2)
         return dist
+
+
+    def togglePlanetBuildMode(self, mode=False):
+        pos = self.selectedObject.getPos(base.render)
+        camPos = camera.getPos()
+        obj = self.selectedObject
+        scale = self.followObjectScale
+
+        if mode:
+            self.hide()
+            self.clear()
+            taskMgr.remove('infocamTask')
+
+            zoomInterval = Sequence(
+                Func(self.NewPlanetBuildView.reset, obj),
+                camera.posHprInterval(0.3, Point3(pos[0]-scale * 0.9, pos[1]-scale * 3.4, 0), Vec3(0,0,0), camPos),
+                Func(self.NewPlanetBuildView.show))
+            zoomInterval.start()
+
+            taskMgr.add(self.world.followCam, 'buildcamTask', extraArgs=[obj, scale, 'build'], appendTask=True)
+            taskMgr.add(self.NewPlanetBuildView.refreshTask, 'quickinfoTask', extraArgs=[self.selectedObjectName], appendTask=True)
+
+        else:
+            self.NewPlanetBuildView.hide()
+            self.NewPlanetBuildView.clear()
+            taskMgr.remove('quickinfoTask')
+            taskMgr.remove('buildcamTask')
+
+            zoomInterval = Sequence(
+                Func(self.reset, obj),
+                camera.posHprInterval(0.3, Point3(pos[0]-scale * 1.25, pos[1]-scale * 4, scale * 4), Vec3(0,-45,0), camPos),
+                Func(self.show))
+            zoomInterval.start()
+            
+            taskMgr.add(self.world.followCam, 'infocamTask', extraArgs=[obj, scale, 'info'], appendTask=True)
+
+        return None
+
