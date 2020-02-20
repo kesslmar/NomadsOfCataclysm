@@ -148,11 +148,12 @@ class PlanetBuildView():
 
     def fillSlotInfo(self, planet, section, slot):
         if not None in (planet, section, slot):
+            DBslot = self.world.planetDB[planet]['slots'][section][slot]
 
-            if self.world.planetDB[planet]['slots'][section][slot]['problemText'] == '':
-                problemText = 'Running as intended'
+            if DBslot['problemText'] == '':
+                problemText = DBslot['name'] + ' is running as intended'
             else:
-                problemText = self.world.planetDB[planet]['slots'][section][slot]['problemText']
+                problemText = DBslot['problemText']
             
             self.PlanetBuildSlotInfoText['text'] = problemText
 

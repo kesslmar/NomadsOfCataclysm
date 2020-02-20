@@ -199,7 +199,7 @@ class World(DirectObject):
             self.ProblemDialog = OkDialog(
                 dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),
                 frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
-                extraArgs=[function])
+                extraArgs=[function, args])
         elif form == 'yesNo':
             self.ProblemDialog = YesNoDialog(
                 dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),

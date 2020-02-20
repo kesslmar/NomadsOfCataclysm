@@ -17,6 +17,7 @@ class PlanetInfoView():
         self.planetData = None
         self.followObjectScale = None
         self.NewPlanetBuildView = None
+        self.messagesDict = {}
 
         self.infoPanelMap = loader.loadModel('models/gui/panels/planetinfopanel_maps.egg').find('**/planetinfopanel')
         self.problemPanelMap = loader.loadModel('models/gui/panels/planetproblempanel_maps.egg').find('**/planetproblempanel')
@@ -85,12 +86,12 @@ class PlanetInfoView():
         self.fill()
         taskMgr.doMethodLater(1, self.UpdateTask, 'updatePlanetInfoTask')
         self.checkButtons()
+        self.loadMessages()
     
     def fill(self):
         # Fills the content of the planet info gui every time a planet gets selected
 
         objID = self.selectedObjectName
-        self.loadMessages()
         self.PlanetInfoTitle['text']=self.planetData['name']
 
         if self.planetData['type']=='Star' or self.planetData['probed']:
@@ -134,6 +135,9 @@ class PlanetInfoView():
 
     def UpdateTask(self, task):
         self.fill()
+        self.checkButtons()
+        self.emptyMessages()
+        self.loadMessages()
         return task.again
 
     def clear(self):
@@ -142,6 +146,8 @@ class PlanetInfoView():
         self.PlanetInfoRescourceTable['text']=''
         self.PlanetInfoGoodsTable['text']=''
         self.PlanetInfoENRGTable['text']=''
+
+        self.emptyMessages()
 
     def show(self):
         self.PlanetInfoPanel.show()
@@ -170,14 +176,22 @@ class PlanetInfoView():
             self.PlanetInfoProbeButton.show()
 
     def loadMessages(self):
-        i=0
-        for id, message in self.world.planetDB[self.selectedObjectName]['messages'].items():
-            mText = message['text'] + '\n' + str(message['value'])
-            
-            msgPanel = DirectFrame(
-                pos=(0, 0, 0.35-i*0.21), frameColor=(0.2, 0.2, 0.22, 0.9), frameSize=(-0.2, 0.2, -0.1, 0.1),
-                parent=self.PlanetInfoMessagePanel, text=mText, text_scale=0.04, text_fg = (1,1,1,1))
-            i+=1
+        if 'messages' in self.world.planetDB[self.selectedObjectName]:
+            i=0
+            for id, message in self.world.planetDB[self.selectedObjectName]['messages'].items():
+                mText = message['text'] + '\n' + str(message['value'])
+                
+                msgPanel = DirectFrame(
+                    pos=(0, 0, 0.35-i*0.21), frameColor=(0.2, 0.2, 0.3, 0.2), frameSize=(-0.2, 0.2, -0.1, 0.1), text_pos=(0,0.05),
+                    parent=self.PlanetInfoMessagePanel, text=mText, text_scale=0.05, text_fg = (1,1,1,1), text_wordwrap=8)
+                
+                self.messagesDict.update({id: msgPanel})
+                i+=1
+    
+    def emptyMessages(self):
+        for id, panel in self.messagesDict.items():
+            panel.destroy()
+        self.messagesDict = {}
 
 
 
@@ -191,14 +205,22 @@ class PlanetInfoView():
             time = round(dist * 15)
             cost = 500 + round(dist * 67)
             missionText = "Probe misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
-            self.world.createProblemDialog(missionText, 'yesNo', self.probeMissionTask)
+            self.world.createProblemDialog(missionText, 'yesNo', self.startProbeMission, [planet1, planet2, name, dist, time, cost])
 
-    def startProbeMission(self):
-        self.world.createProblemDialog('Probe Mission launched!')
-        taskMgr.add(self.coloniseMissionTask, 'coloniseMissionTask')
+    def startProbeMission(self, planet1, planet2, name, dist, time, cost):
+        id = 'probe' + planet2.getNetTag('name')
+        self.world.addMessage(planet2, id, 'info', 'Probing Mission', time)
+        taskMgr.doMethodLater(1, self.probeMissionTask, 'probeMissionTask', extraArgs=[planet2, id], appendTask=True)
 
-    def probeMissionTask(self, planet1, planet2, name, dist, time, cost, task):
-        print('Probe mission started!')
+    def probeMissionTask(self, planet2, id, task):
+        planetName = planet2.getNetTag('name')
+        if self.world.planetDB[planetName]['messages'][id]['value'] > 0:
+            self.world.planetDB[planetName]['messages'][id]['value']-=1
+        else:
+            self.world.planetDB[planetName].update({'probed':True})
+            self.world.planetDB[planetName]['messages'].pop(id)
+            return task.done
+        return task.again
 
 
     def showColoniseMission(self):
@@ -206,22 +228,24 @@ class PlanetInfoView():
         planet2 = self.selectedObject
         name = self.selectedObjectName
         dist = round(self.calcDistanceBetweenPlanets(planet1, planet2),3)
-        time = round(dist * 30)
+        time = round(dist * 3)
         cost = 3900 + round(dist * 123)
         missionText = "Colonise misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
         self.world.createProblemDialog(missionText, 'yesNo', self.startColoniseMission, [planet1, planet2, name, dist, time, cost])
 
     def startColoniseMission(self, planet1, planet2, name, dist, time, cost):
         id = 'colonise' + planet2.getNetTag('name')
-        self.world.createProblemDialog('Colonise Mission to {} launched!'.format(name))
-        self.world.addMessage(planet2, id, 'info', 'Colonise mission on the way', time)
+        self.world.addMessage(planet2, id, 'info', 'Colonise Mission', time)
         taskMgr.doMethodLater(1, self.coloniseMissionTask, 'coloniseMissionTask', extraArgs=[planet1, planet2, id, name, dist, time, cost], appendTask=True)
 
     def coloniseMissionTask(self, planet1, planet2, id, name, dist, time, cost, task):
-        if self.world.planetDB[planet2.getNetTag('name')]['messages'][id]['value'] >= 0:
-            self.world.planetDB[planet2.getNetTag('name')]['messages'][id]['value']-=1
+        planetName = planet2.getNetTag('name')
+        if self.world.planetDB[planetName]['messages'][id]['value'] > 0:
+            self.world.planetDB[planetName]['messages'][id]['value']-=1
         else:
-            print('Elon would be proud!')
+            self.world.planetDB[planetName].update({'colonised':True})
+            self.world.planetDB[planetName]['messages'].pop(id)
+            return task.done
         return task.again
 
 
