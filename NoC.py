@@ -21,7 +21,7 @@ from direct.task import Task
 import sys
 import random
 import math
-import GUI
+
 from planetInfoView import PlanetInfoView
 from planetBuildView import PlanetBuildView
 
@@ -61,21 +61,8 @@ class World(DirectObject):
         self.foodConsumingFactor = 0.75
         self.goodsCap = 1000
 
-        #self.selectedObject = None
-        #self.selectedObjectName = None
-        #self.followObjectScale = 1
-        self.NewPlanetInfoView = None
-        self.NewPlanetBuildView = None
-
         self.PlanetInfoModeOn = False
-        self.PlanetBuildModeOn = False
-        self.PlanetBuildSlotButtons = []
-        self.PlanetBuildSlotLabels = []
-        self.ActiveBuildSection  = 'RESC' #Is either RESC, PROD, ENRG, DEV or HAB
-        self.ActiveBuildSlot = [None]
-        self.ActiveBlueprint = None
         self.capitalPlanet = None
-
 
         self.planetDB = {} #All attributes and constructed buildings that a planet has
         self.buildingsDB = {} #Will contain all buildable structures
@@ -91,9 +78,7 @@ class World(DirectObject):
         base.cTrav.addCollider(self.pickerNP, self.collQueue)
 
         # Set up the start screen
-        self.setUpGlobalGuiMaps()
-        GUI.setUpGui(self)
-
+        self.createGui()
         self.NewPlanetInfoView = PlanetInfoView(self)
         self.NewPlanetBuildView = PlanetBuildView(self)
 
@@ -107,7 +92,6 @@ class World(DirectObject):
         taskMgr.add(self.redrawHeadGUI, "redrawHeadGUITask")
         taskMgr.doMethodLater(self.PopulationTimeDelta, self.populatePlanetTask, 'populatePlanetTask', extraArgs=['earth'], appendTask=True)
         taskMgr.doMethodLater(2, self.generateMoneyTask, 'generateMoneyTask')
-        # Other tasks are created in: constructBuilding()
 
         # Open up all listeners for varous mouse and keyboard inputs
         self.accept("escape", sys.exit)
@@ -146,7 +130,7 @@ class World(DirectObject):
     #       MAIN GAIMPLAY FUNCTIONS         *
     #****************************************
 
-    # Camera control and main GUI functions
+    # Camera, controle and main GUI functions
     #----------------------------------------
     def setCam(self, task):
         dt = globalClock.getDt()
@@ -160,7 +144,7 @@ class World(DirectObject):
         dt = globalClock.getDt()
         camPos = camera.getPos()
         if not self.PlanetInfoModeOn:    
-            if direction == 'in' and camera.getPos()[2] > 5:
+            if direction == 'in' and camera.getPos()[2] > 8:
                 zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]+self.zoomSpeed,camPos[2]-self.zoomSpeed,), camPos)
                 zoomInterval.start()
             elif direction == 'out' and camera.getPos()[2] < 50:
@@ -207,14 +191,14 @@ class World(DirectObject):
                 extraArgs=[function, args])
 
     def cleanupProblemDialog(self, value, function, args):
+        self.ProblemDialog.cleanup()
         if value:
             function(*args)
-        self.ProblemDialog.cleanup()
+        
 
 
     # Functions to interact with the planet info view
     #------------------------------------------------
-
     def togglePlanetInfoMode(self, mode=False, obj=None):
         
         if mode:
@@ -241,9 +225,6 @@ class World(DirectObject):
             zoomInterval.start()
             taskMgr.remove('updatePlanetInfoTask')
             self.NewPlanetInfoView.hide()
-
-    # Planet Build View and all its functions
-    #----------------------------------------
 
 
     # Diverse collection of gameplay functions and tasks
@@ -279,16 +260,18 @@ class World(DirectObject):
     def addMessage(self, planet, id, mType, text, value):
         self.planetDB[planet.getNetTag('name')]['messages'].update({id: {'type':mType, 'text':text, 'value':value}})
 
+    def calcDistanceBetweenPlanets(self, planet1, planet2):
+        pos1 = planet1.getPos(base.render)
+        pos2 = planet2.getPos(base.render)
+        diffX = abs(pos1[0] - pos2[0])
+        diffY = abs(pos1[1] - pos2[1])
+        dist = math.sqrt(diffX**2 + diffY**2)
+        return dist
+
+
     #****************************************
     #       Initialisation Functions        *
     #****************************************
-
-    def setUpGlobalGuiMaps(self):
-        self.buttonModel = loader.loadModel('models/gui/buttons/simple_button_maps.egg')
-        self.buttonMaps = (self.buttonModel.find('**/normal'),self.buttonModel.find('**/active'),
-                  self.buttonModel.find('**/normal'),self.buttonModel.find('**/disabled'))
-
-        self.infoDialogPanelMap = loader.loadModel('models/gui/panels/infodialogpanel_maps.egg').find('**/infodialogpanel')
 
     def loadPlanets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
@@ -560,7 +543,27 @@ class World(DirectObject):
             }
         }
 
+    def createGui(self):
+        self.buttonModel = loader.loadModel('models/gui/buttons/simple_button_maps.egg')
+        self.buttonMaps = (self.buttonModel.find('**/normal'),self.buttonModel.find('**/active'),
+                           self.buttonModel.find('**/normal'),self.buttonModel.find('**/disabled'))
+
+        self.infoDialogPanelMap = loader.loadModel('models/gui/panels/infodialogpanel_maps.egg').find('**/infodialogpanel')
+        
+        self.HeadGUIPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0.9), frameSize=(0, 1.55, -0.13, 0), pos=(-1.8, 0, 1))
     
+        self.HeadGUIText = DirectLabel(text=('Year '+str(self.yearCounter)+', '
+                                                'Day '+str(self.dayCounter) + ', '
+                                                'Money: ' +str(self.money) + ', '
+                                                'Population: ' +str(self.systemPopulation)), 
+            pos=(0.1, 0, -0.085), text_fg=(1, 1, 1, 1), frameColor=(0,0,0,0),
+            parent=self.HeadGUIPanel, text_align=TextNode.ALeft, text_scale=.07)
+
+        self.MapViewPanel = DirectFrame(
+            frameColor=(0.2, 0.2, 0.22, 0.9),
+            frameSize=(0, 0.5, -1.2, 0),
+            pos=(-1.75, 0, 0.6))
+
         
 
 
@@ -571,5 +574,6 @@ class World(DirectObject):
 
 # end class world
 
-w = World()
-base.run()
+if __name__ == '__main__':
+    w = World()
+    base.run()
