@@ -8,8 +8,7 @@ from panda3d.core import *
 class PlanetBuildView():
     def __init__(self, world):
         self.world = world
-        self.selectedObject = None
-        self.selectedObjectName = None
+        self.obj = None
         self.ActiveBuildSection = 'RESC'
         self.ActiveBlueprint = None
         self.ActiveBuildSlot = [None]
@@ -22,8 +21,7 @@ class PlanetBuildView():
 
         self.clear()
         
-        self.selectedObject = obj
-        self.selectedObjectName = obj.getNetTag('name')
+        self.obj = obj
 
         self.fill()
         self.checkConstructButton()
@@ -122,10 +120,10 @@ class PlanetBuildView():
         self.checkConstructButton()
 
     def checkConstructButton(self):
-        planet=self.selectedObjectName
+        planet=self.obj.name
         section=self.ActiveBuildSection
 
-        if self.ActiveBlueprint != None and self.ActiveBuildSlot[0] != None and self.world.planetDB[planet]['slots'][section][self.ActiveBuildSlot[0]] == None:
+        if self.ActiveBlueprint != None and self.ActiveBuildSlot[0] != None and self.obj.slots[section][self.ActiveBuildSlot[0]] == None:
             self.PlanetBuildConstructButton['state']='normal'
             self.PlanetBuildConstructButton['text_fg']=(1,1,1,1)
         else:
@@ -133,10 +131,10 @@ class PlanetBuildView():
             self.PlanetBuildConstructButton['text_fg']=(0.5,0.5,0.5,1)
         
     def checkSalvageAndInfo(self):
-        planet=self.selectedObjectName
+        planet=self.obj.name
         section=self.ActiveBuildSection
 
-        if self.ActiveBuildSlot[0] != None and self.world.planetDB[planet]['slots'][section][self.ActiveBuildSlot[0]] != None:
+        if self.ActiveBuildSlot[0] != None and self.obj.slots[section][self.ActiveBuildSlot[0]] != None:
             self.PlanetBuildSalvageButton['state']='normal'
             self.PlanetBuildSalvageButton['text_fg']=(1,1,1,1)
             self.PlanetBuildSlotInfo.show()
@@ -148,7 +146,7 @@ class PlanetBuildView():
 
     def fillSlotInfo(self, planet, section, slot):
         if not None in (planet, section, slot):
-            DBslot = self.world.planetDB[planet]['slots'][section][slot]
+            DBslot = self.obj.slots[section][slot]
 
             if DBslot['problemText'] == '':
                 problemText = DBslot['name'] + ' is running as intended'
@@ -158,13 +156,11 @@ class PlanetBuildView():
             self.PlanetBuildSlotInfoText['text'] = problemText
 
     def constructBuilding(self):
-        planet = self.selectedObjectName
+        planet = self.obj
         section = self.ActiveBuildSection
         slot = self.ActiveBuildSlot[0]
         blueprint = self.ActiveBlueprint['text']
         price = self.world.buildingsDB[section][blueprint]['Price']
-        enrgCap = self.world.planetDB[planet]['enrgCap']
-        enrgUsg = self.world.planetDB[planet]['enrgUsg']
 
         getsBuild = False
         addPRODTask = False
@@ -174,43 +170,43 @@ class PlanetBuildView():
         if self.world.money >= price:
             if section == 'ENRG':
                 getsBuild = True
-                self.world.planetDB[planet]['enrgCap']+=self.world.buildingsDB[section][blueprint]['incVal']
+                self.obj.energy_cap += self.world.buildingsDB[section][blueprint]['incVal']
                 if blueprint == 'Coal Generator' or blueprint == 'Nuclear Reactor':
                     addConsumeTask = True
             else:
-                if enrgUsg + self.world.buildingsDB[section][blueprint]['enrgDrain'] <= enrgCap:
+                if self.obj.energy_usg + self.world.buildingsDB[section][blueprint]['enrgDrain'] <= self.obj.energy_cap:
                     if section == 'RESC':
                         if self.world.buildingsDB[section][blueprint]['req'] == 'Athmosphere':
-                            if self.world.planetDB[planet]['athm']:
+                            if self.obj.athmosphere:
                                 getsBuild = True
                                 addRESCTask = True
-                                self.world.planetDB[planet]['enrgUsg']+=self.world.buildingsDB[section][blueprint]['enrgDrain']    
+                                self.obj.energy_usg += self.world.buildingsDB[section][blueprint]['enrgDrain']    
                             else:
                                 self.world.createProblemDialog('No Athmosphere present')
-                        elif self.world.buildingsDB[section][blueprint]['req'] in self.world.planetDB[planet]['resc']:
+                        elif self.world.buildingsDB[section][blueprint]['req'] in self.obj.rescources:
                             getsBuild = True
                             addRESCTask = True
-                            self.world.planetDB[planet]['enrgUsg']+=self.world.buildingsDB[section][blueprint]['enrgDrain']
+                            self.obj.energy_usg += self.world.buildingsDB[section][blueprint]['enrgDrain']
                         else:
                             self.world.createProblemDialog('Needed Rescource is not available')
                     elif section == 'PROD':
                         getsBuild = True
                         addPRODTask = True
-                        self.world.planetDB[planet]['enrgUsg']+=self.world.buildingsDB[section][blueprint]['enrgDrain']
+                        self.obj.energy_usg += self.world.buildingsDB[section][blueprint]['enrgDrain']
                     elif section == 'HAB':
                         getsBuild = True
-                        self.world.planetDB[planet]['habCap']+=self.world.buildingsDB[section][blueprint]['incVal']
-                        self.world.planetDB[planet]['enrgUsg']+=self.world.buildingsDB[section][blueprint]['enrgDrain']
+                        self.obj.habitation_cap +=self.world.buildingsDB[section][blueprint]['incVal']
+                        self.obj.energy_usg += self.world.buildingsDB[section][blueprint]['enrgDrain']
                     elif section == 'DEV':
                         getsBuild = True
-                        self.world.planetDB[planet]['enrgUsg']+=self.world.buildingsDB[section][blueprint]['enrgDrain']
+                        self.obj.energy_usg += self.world.buildingsDB[section][blueprint]['enrgDrain']
                 else:
                     self.world.createProblemDialog('Not sufficient Energy')
         else:
             self.world.createProblemDialog('Not enough Money')
         
         if getsBuild:
-            self.world.planetDB[planet]['slots'][section][slot] = {'name':blueprint, 'gotProblem':False, 'problemText':'', 'workers':0, 'output':0}
+            self.obj.slots[section][slot] = {'name':blueprint, 'gotProblem':False, 'problemText':'', 'workers':0, 'output':0}
             self.world.money -= price
             self.updateSlots()
 
@@ -236,10 +232,9 @@ class PlanetBuildView():
         self.checkSalvageAndInfo()
 
     def salvageBuilding(self):
-            planet = self.selectedObjectName
             slot = self.ActiveBuildSlot[0]
             section = self.ActiveBuildSection
-            blueprint = self.world.planetDB[planet]['slots'][section][slot]['name']
+            blueprint = self.obj.slots[section][slot]['name']
             price = self.world.buildingsDB[section][blueprint]['Price']
             incVal = self.world.buildingsDB[section][blueprint]['incVal']
             enrgDrain = self.world.buildingsDB[section][blueprint]['enrgDrain']
@@ -247,17 +242,17 @@ class PlanetBuildView():
             getsSalvaged = True
 
             if section == 'ENRG': 
-                if (self.world.planetDB[planet]['enrgCap'] - incVal) < self.world.planetDB[planet]['enrgUsg']:
+                if (self.obj.energy_cap - incVal) < self.obj.energy_usg:
                     self.world.createProblemDialog('Energy too low if salvaged')
                     getsSalvaged = False
                 else:
-                    self.world.planetDB[planet]['enrgCap'] -= incVal
+                    self.obj.energy_cap -= incVal
             
 
 
             if getsSalvaged:
-                self.world.planetDB[planet]['slots'][section][slot] = None
-                self.world.planetDB[planet]['enrgUsg'] -= enrgDrain
+                self.obj.slots[section][slot] = None
+                self.obj.energy_usg -= enrgDrain
                 self.world.money += round(price * self.world.salvageFactor)
                 self.updateSlots()
                 
@@ -266,9 +261,9 @@ class PlanetBuildView():
                 self.checkConstructButton()
 
     def updateSlots(self):
-        planet = self.selectedObjectName
+        planet = self.obj.name
         section = self.ActiveBuildSection
-        data = self.world.planetDB[planet]['slots'][section]
+        data = self.obj.slots[section]
         fl = section[0]
 
         ctr=0
@@ -285,13 +280,12 @@ class PlanetBuildView():
 
 
     def refreshTask(self, planet, task):
-        data = self.world.planetDB[planet]
-        athm = data['athm']
-        wind = data['wind']
-        enrgUsg = data['enrgUsg']
-        enrgCap = data['enrgCap']
-        pop = data['pop']
-        habCap = data['habCap']
+        athm = planet.athmosphere
+        wind = planet.wind
+        enrgUsg = planet.energy_usg
+        enrgCap = planet.energy_cap
+        pop = planet.population
+        habCap = planet.habitation_cap
 
         
         self.PlanetBuildQuickText1['text'] = (
@@ -299,93 +293,93 @@ class PlanetBuildView():
         )
 
         self.PlanetBuildQuickText2['text'] = 'RESC: '
-        for k,v in data['resc'].items():
+        for k,v in planet.rescources.items():
             self.PlanetBuildQuickText2['text'] += k + ', '
 
         self.PlanetBuildQuickText3['text'] = 'GOODS: '
-        if 'goods' in data:
-            for k,v in data['goods'].items():
+        if planet.goods:
+            for k,v in planet.goods.items():
                 self.PlanetBuildQuickText3['text'] += str(v) + ' ' + k + ' - '
         return task.cont
 
-    def extractRescourceTask(self, celObj, section, slot, good, incVal, task):
+    def extractRescourceTask(self, planet, section, slot, good, incVal, task):
         
-        if not (good in self.world.planetDB[celObj]['goods']):
-            self.world.planetDB[celObj]['goods'].update({good:0})
+        if not (good in planet.goods):
+            planet.goods.update({good:0})
         
-        if self.world.planetDB[celObj]['enrgCap'] < self.world.planetDB[celObj]['enrgUsg']:
-            if self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.world.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Not enough energy to continue extraction'
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-        elif self.world.planetDB[celObj]['goods'][good] >= self.world.goodsCap:
-            if self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.world.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Storage is full'
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
+        if planet.energy_cap < planet.energy_usg:
+            if planet.slots[section][slot]['gotProblem'] == False:
+                planet.slots[section][slot]['gotProblem'] = True
+                planet.slots[section][slot]['problemText'] = 'Not enough energy to continue extraction'
+                self.updateSlots()
+                self.fillSlotInfo(planet, section, slot)
+        elif planet.goods[good] >= self.world.goodsCap:
+            if planet.slots[section][slot]['gotProblem'] == False:
+                planet.slots[section][slot]['gotProblem'] = True
+                planet.slots[section][slot]['problemText'] = 'Storage is full'
+                self.updateSlots()
+                self.fillSlotInfo(planet, section, slot)
         else:
-            if self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
-                self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
-                self.world.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-            self.world.planetDB[celObj]['goods'][good]+=incVal
+            if planet.slots[section][slot]['gotProblem'] == True:
+                planet.slots[section][slot]['gotProblem'] = False
+                planet.slots[section][slot]['problemText'] = ''
+                self.updateSlots()
+                self.fillSlotInfo(planet, section, slot)
+            planet.goods[good]+=incVal
         
         return task.again
 
-    def processGoodTask(self, celObj, section, slot, inGood, outGood, incVal, decVal, task):
+    def processGoodTask(self, planet, section, slot, inGood, outGood, incVal, decVal, task):
 
-        if not (inGood in self.world.planetDB[celObj]['goods']) or self.world.planetDB[celObj]['goods'][inGood] < decVal:
-            if self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.world.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue production'.format(inGood)
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-        elif self.world.planetDB[celObj]['enrgCap'] < self.world.planetDB[celObj]['enrgUsg']:
-            if self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.world.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Not enough energy to continue production'
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
-        elif self.world.planetDB[celObj]['goods'][outGood] >= self.world.goodsCap:
-            if self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.world.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Storage is full'
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
+        if not (inGood in planet.goods) or planet.goods[inGood] < decVal:
+            if planet.slots[section][slot]['gotProblem'] == False:
+                planet.slots[section][slot]['gotProblem'] = True
+                planet.slots[section][slot]['problemText'] = 'Missing {} to continue production'.format(inGood)
+                self.updateSlots()
+                self.fillSlotInfo(planet, section, slot)
+        elif planet.energy_cap < planet.energy_usg:
+            if planet.slots[section][slot]['gotProblem'] == False:
+                planet.slots[section][slot]['gotProblem'] = True
+                planet.slots[section][slot]['problemText'] = 'Not enough energy to continue production'
+                self.updateSlots()
+                self.fillSlotInfo(planet, section, slot)
+        elif planet.goods[outGood] >= self.world.goodsCap:
+            if planet.slots[section][slot]['gotProblem'] == False:
+                planet.slots[section][slot]['gotProblem'] = True
+                planet.slots[section][slot]['problemText'] = 'Storage is full'
+                self.updateSlots()
+                self.fillSlotInfo(planet, section, slot)
         else:
-            if self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
-                self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
-                self.world.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
-                self.updateBuildSlotButtons()
-                self.fillSlotInfo(celObj, section, slot)
+            if planet.slots[section][slot]['gotProblem'] == True:
+                planet.slots[section][slot]['gotProblem'] = False
+                planet.slots[section][slot]['problemText'] = ''
+                self.updateSlots()
+                self.fillSlotInfo(planet, section, slot)
                 
-            self.world.planetDB[celObj]['goods'][inGood]-=decVal
-            if not (outGood in self.world.planetDB[celObj]['goods']):
-                self.world.planetDB[celObj]['goods'].update({outGood:0})
-            self.world.planetDB[celObj]['goods'][outGood]+=incVal
+            planet.goods[inGood]-=decVal
+            if not (outGood in planet.goods):
+                planet.goods.update({outGood:0})
+            planet.goods[outGood]+=incVal
         
         return task.again
 
-    def consumeGoodTask(self, celObj, section, slot, good, decVal, incVal, task):
+    def consumeGoodTask(self, planet, section, slot, good, decVal, incVal, task):
 
-        if not (good in self.world.planetDB[celObj]['goods']) or self.world.planetDB[celObj]['goods'][good] < decVal:
-            if self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] == False:
-                self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] = True
-                self.world.planetDB[celObj]['slots'][section][slot]['problemText'] = 'Missing {} to continue service'.format(good)
+        if not (good in planet.goods) or planet.goods[good] < decVal:
+            if planet.slots[section][slot]['gotProblem'] == False:
+                planet.slots[section][slot]['gotProblem'] = True
+                planet.slots[section][slot]['problemText'] = 'Missing {} to continue service'.format(good)
                 self.updateSlots()
-                self.fillSlotInfo(celObj, section, slot)
-                if section == 'ENRG': self.world.planetDB[celObj]['enrgCap'] -= incVal
+                self.fillSlotInfo(planet, section, slot)
+                if section == 'ENRG': planet.energy_cap -= incVal
         else:
-            if self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] == True:
-                self.world.planetDB[celObj]['slots'][section][slot]['gotProblem'] = False
-                self.world.planetDB[celObj]['slots'][section][slot]['problemText'] = ''
+            if planet.slots[section][slot]['gotProblem'] == True:
+                planet.slots[section][slot]['gotProblem'] = False
+                planet.slots[section][slot]['problemText'] = ''
                 self.updateSlots()
-                self.fillSlotInfo(celObj, section, slot)
-                if section == 'ENRG': self.world.planetDB[celObj]['enrgCap'] += incVal
-            self.world.planetDB[celObj]['goods'][good]-=decVal
+                self.fillSlotInfo(planet, section, slot)
+                if section == 'ENRG': planet.energy_cap += incVal
+            planet.goods[good]-=decVal
 
         return task.again
 

@@ -24,6 +24,9 @@ import math
 
 from planetInfoView import PlanetInfoView
 from planetBuildView import PlanetBuildView
+from star import Star
+from planet import Planet
+from moon import Moon
 
 base = ShowBase()
 wp = WindowProperties()
@@ -64,7 +67,7 @@ class World(DirectObject):
         self.PlanetInfoModeOn = False
         self.capitalPlanet = None
 
-        self.planetDB = {} #All attributes and constructed buildings that a planet has
+        self.galaxy_objects = []
         self.buildingsDB = {} #Will contain all buildable structures
 
         # Everything that's needed to detect selecting objects with mouse
@@ -85,12 +88,12 @@ class World(DirectObject):
         self.loadPlanets()      
         self.rotatePlanets()
         self.fillBuildingsDB()
-        self.prepareSlotsInPlanetDB()
+        self.set_capital_planet()
 
         # Add all constantly running checks to the taskmanager
         taskMgr.add(self.setCam, "setcamTask")
         taskMgr.add(self.redrawHeadGUI, "redrawHeadGUITask")
-        taskMgr.doMethodLater(self.PopulationTimeDelta, self.populatePlanetTask, 'populatePlanetTask', extraArgs=['earth'], appendTask=True)
+        taskMgr.doMethodLater(self.PopulationTimeDelta, self.populatePlanetTask, 'populatePlanetTask', extraArgs=[self.Earth], appendTask=True)
         taskMgr.doMethodLater(2, self.generateMoneyTask, 'generateMoneyTask')
 
         # Open up all listeners for varous mouse and keyboard inputs
@@ -152,7 +155,7 @@ class World(DirectObject):
                 zoomInterval.start()
 
     def followCam(self, obj, scale, mode, task):
-        pos = obj.getPos(base.render)
+        pos = obj.getPos()
 
         if mode=='info':
             camera.setPos(pos[0]-scale * 1.25, pos[1]-scale * 4, scale * 4)
@@ -169,7 +172,8 @@ class World(DirectObject):
             pickedObj = self.collQueue.getEntry(0).getIntoNodePath()
             pickedObj = pickedObj.findNetTag('clickable')
             if not pickedObj.isEmpty() and not self.PlanetInfoModeOn:
-                self.togglePlanetInfoMode(True, pickedObj)
+                instance = pickedObj.getPythonTag('instance')
+                self.togglePlanetInfoMode(True, instance)
 
     def redrawHeadGUI(self, task):
         self.HeadGUIText['text'] = ('Year '+str(self.yearCounter)+', '
@@ -202,20 +206,18 @@ class World(DirectObject):
     def togglePlanetInfoMode(self, mode=False, obj=None):
         
         if mode:
-            objName = obj.getNetTag('name')
-            objScale = self.planetDB[objName]['scale']
             self.MapViewPanel.hide()
             self.PlanetInfoModeOn = True
 
-            pos = obj.getPos(base.render)
+            pos = obj.getPos()
             camPos = camera.getPos()
             zoomInterval = Sequence(
                 Func(self.NewPlanetInfoView.reset, obj),
-                camera.posInterval(0.3, Point3(pos[0]-objScale * 1.25, pos[1]-objScale * 4, objScale * 4), camPos),
+                camera.posInterval(0.3, Point3(pos[0]-obj.scale * 1.25, pos[1]-obj.scale * 4, obj.scale * 4), camPos),
                 Func(self.NewPlanetInfoView.show)
             )
             zoomInterval.start()
-            taskMgr.add(self.followCam, 'infocamTask', extraArgs=[obj, objScale, 'info'], appendTask=True)
+            taskMgr.add(self.followCam, 'infocamTask', extraArgs=[obj, obj.scale, 'info'], appendTask=True)
             
         else:
             self.PlanetInfoModeOn = False
@@ -230,39 +232,39 @@ class World(DirectObject):
     # Diverse collection of gameplay functions and tasks
     #---------------------------------------------------
     def populatePlanetTask(self, planet, task):
-        habProblem = self.planetDB[planet]['habCap'] <= self.planetDB[planet]['pop']
-        foodProblem = (not('Vegetable crates' in self.planetDB[planet]['goods']) or 
-                      self.planetDB[planet]['goods']['Vegetable crates'] < self.planetDB[planet]['pop'])
+        habProblem = planet.habitation_cap <= planet.population
+        foodProblem = (not('Vegetable crates' in planet.goods) or 
+                      planet.goods['Vegetable crates'] < planet.population)
 
         if foodProblem:
             d = random.randint(-1,2)
-            if self.planetDB[planet]['pop'] - d <= 0:
-                self.planetDB[planet]['pop'] = 0
+            if planet.population - d <= 0:
+                planet.population = 0
             else:
-                self.planetDB[planet]['pop'] -= d
+                planet.population -= d
         elif habProblem:
             pass
-            self.planetDB[planet]['goods']['Vegetable crates'] -= round(self.planetDB[planet]['pop'] * self.foodConsumingFactor)
+            planet.goods['Vegetable crates'] -= round(planet.population * self.foodConsumingFactor)
         else:
-            self.planetDB[planet]['pop']+=random.randint(1,3)
-            self.planetDB[planet]['goods']['Vegetable crates'] -= round(self.planetDB[planet]['pop'] * self.foodConsumingFactor)
+            planet.population+=random.randint(1,3)
+            planet.goods['Vegetable crates'] -= round(planet.population * self.foodConsumingFactor)
         return task.again
 
     def generateMoneyTask(self, task):
         wholePop = 0
-        for planet, data in self.planetDB.items():
-            if data['type'] != 'Star':
-                wholePop += data['pop']
+        for obj in self.galaxy_objects:
+            if type(obj) != Star:
+                wholePop += obj.population
         self.money += round(wholePop * self.taxFactor)
         self.systemPopulation = wholePop
         return task.again
 
     def addMessage(self, planet, id, mType, text, value):
-        self.planetDB[planet.getNetTag('name')]['messages'].update({id: {'type':mType, 'text':text, 'value':value}})
+        planet.messages.update({id: {'type':mType, 'text':text, 'value':value}})
 
     def calcDistanceBetweenPlanets(self, planet1, planet2):
-        pos1 = planet1.getPos(base.render)
-        pos2 = planet2.getPos(base.render)
+        pos1 = planet1.getPos()
+        pos2 = planet2.getPos()
         diffX = abs(pos1[0] - pos2[0])
         diffY = abs(pos1[1] - pos2[1])
         dist = math.sqrt(diffX**2 + diffY**2)
@@ -289,137 +291,59 @@ class World(DirectObject):
         self.sky.reparentTo(render)
         self.sky.setScale(100)
 
-        self.planetDB.update({'sun':{
-            'name':'Sun', 'scale':2, 'dist':0, 'type':'Star'}})
-        self.sun = loader.loadModel("models/planet_sphere")
-        self.sun_tex = loader.loadTexture("models/sun_1k_tex.jpg")
-        self.sun.setTexture(self.sun_tex, 1)
-        self.sun.reparentTo(render)
-        self.sun.setScale(self.planetDB['sun']['scale'] * self.sizescale)
-        self.sun.setTag('clickable', 'yes')
-        self.sun.setTag('name', 'sun')
+        self.Sun = Star(self, 'Sun', 'models/planet_sphere', 
+                        'models/sun_1k_tex.jpg', 2)
 
-        self.planetDB.update({'mercury':{
-            'name':'Mercury',   'scale':0.385,  'dist':0.38, 
-            'type':'Planet',    'athm':False,   'wind':1, 
-            'enrgCap':0,        'enrgUsg':0,    'pop':0,
-            'habCap':0,         'probed':False, 'colonised':False,
-            'resc':{'Coal':'Common', 'Iron':'Common'},
-            'goods':{},         'messages':{} }})
-        self.mercury = loader.loadModel("models/planet_sphere")
-        self.mercury_tex = loader.loadTexture("models/mercury_1k_tex.jpg")
-        self.mercury.setTexture(self.mercury_tex, 1)
-        self.mercury.reparentTo(self.orbit_root_mercury)
-        self.mercury.setPos(self.planetDB['mercury']['dist'] * self.orbitscale, 0, 0)
-        self.mercury.setScale(self.planetDB['mercury']['scale'] * self.sizescale)
-        self.mercury.setTag('clickable', 'yes')
-        self.mercury.setTag('name', 'mercury')
+        self.Mercury = Planet(self, 'Mercury', 'models/planet_sphere',
+                              'models/mercury_1k_tex.jpg', self.orbit_root_mercury,
+                              0.385, 0.38, False, 1, {'Coal':'Common', 'Iron':'Common'})
         
-        self.planetDB.update({'venus':{
-            'name':'Venus',     'scale':0.923,  'dist':0.72, 
-            'type':'Planet',    'athm':False,   'wind':2, 
-            'enrgCap':0,        'enrgUsg':0,    'pop':0,
-            'habCap':0,         'probed':False, 'colonised':False,
-            'resc':{'Coal':'Common', 'Uranium':'Normal'},
-            'goods':{},         'messages':{} }})
-        self.venus = loader.loadModel("models/planet_sphere")
-        self.venus_tex = loader.loadTexture("models/venus_1k_tex.jpg")
-        self.venus.setTexture(self.venus_tex, 1)
-        self.venus.reparentTo(self.orbit_root_venus)
-        self.venus.setPos(self.planetDB['venus']['dist'] * self.orbitscale, 0, 0)
-        self.venus.setScale(self.planetDB['venus']['scale'] * self.sizescale)
-        self.venus.setTag('clickable', 'yes')
-        self.venus.setTag('name', 'venus')
+        self.Venus = Planet(self, 'Venus', 'models/planet_sphere',
+                            'models/venus_1k_tex.jpg', self.orbit_root_venus,
+                            0.923, 0.72, False, 2, {'Coal':'Common', 'Uranium':'Normal'})
 
-        self.planetDB.update({'mars':{
-            'name':'Mars',      'scale':0.512,  'dist':1.52, 
-            'type':'Planet',    'athm':False,   'wind':1, 
-            'enrgCap':0,        'enrgUsg':0,    'pop':0,
-            'habCap':0,         'probed':True, 'colonised':False,
-            'resc':{'Gemstone':'Rare', 'Iron':'Rare'},
-            'goods':{},         'messages':{1:{'type':'problem', 'text':'Simple test Message', 'value':69}} }})
-        self.mars = loader.loadModel("models/planet_sphere")
-        self.mars_tex = loader.loadTexture("models/mars_1k_tex.jpg")
-        self.mars.setTexture(self.mars_tex, 1)
-        self.mars.reparentTo(self.orbit_root_mars)
-        self.mars.setPos(self.planetDB['mars']['dist'] * self.orbitscale, 0, 0)
-        self.mars.setScale(self.planetDB['mars']['scale'] * self.sizescale)
-        self.mars.setTag('clickable', 'yes')
-        self.mars.setTag('name', 'mars')
+        self.Mars = Planet(self, 'Mars', 'models/planet_sphere',
+                            'models/mars_1k_tex.jpg', self.orbit_root_mars,
+                            0.512, 1.52, False, 1, {'Gemstone':'Rare', 'Iron':'Rare'})
 
-        self.planetDB.update({'earth':{
-            'name':'Earth',     'scale':1,      'dist':1, 
-            'type':'Planet',    'athm':True,    'wind':1, 
-            'enrgCap':0,        'enrgUsg':0,    'pop':0,
-            'habCap':100,         'probed':True, 'colonised':True,
-            'resc':{'Iron':'Normal', 'Coal':'Common', 'Uranium':'Rare'}, 
-            'goods':{},         'messages':{} }})
-        self.earth = loader.loadModel("models/planet_sphere")
-        self.earth_tex = loader.loadTexture("models/earth_1k_tex.jpg")
-        self.earth.setTexture(self.earth_tex, 1)
-        self.earth.reparentTo(self.orbit_root_earth)
-        self.earth.setScale(self.planetDB['earth']['scale'] * self.sizescale)
-        self.earth.setPos(self.planetDB['earth']['dist'] * self.orbitscale, 0, 0)
-        self.earth.setTag('clickable', 'yes')
-        self.earth.setTag('name', 'earth')
-        self.capitalPlanet = self.earth
+        self.Earth = Planet(self, 'Earth', 'models/planet_sphere',
+                            'models/earth_1k_tex.jpg', self.orbit_root_earth,
+                            1, 1, True, 1, {'Iron':'Normal', 'Coal':'Common'})
         
 
         self.orbit_root_moon.setPos(self.orbitscale, 0, 0)
 
-        self.planetDB.update({'moon':{
-            'name':'Moon',      'scale':0.1,    'dist':0.1, 
-            'type':'Moon',      'athm':False,   'wind':0, 
-            'enrgCap':0,        'enrgUsg':0,    'pop':0,
-            'habCap':0,         'probed':True, 'colonised':False,
-            'resc':{'Coal':'Common', 'Cheese':'Rare'}, 
-            'goods':{},         'message':{} }})
-        self.moon = loader.loadModel("models/planet_sphere")
-        self.moon_tex = loader.loadTexture("models/moon_1k_tex.jpg")
-        self.moon.setTexture(self.moon_tex, 1)
-        self.moon.reparentTo(self.orbit_root_moon)
-        self.moon.setScale(0.1 * self.sizescale)
-        self.moon.setPos(0.1 * self.orbitscale, 0, 0)
-        self.moon.setTag('clickable', 'yes')
-        self.moon.setTag('name', 'moon')
-
-    def prepareSlotsInPlanetDB(self):
-        for planet, data in self.planetDB.items():
-            self.planetDB[planet].update({'slots':{
-                'RESC':{'1':None, '2':None, '3':None, '4':None, '5':None},
-                'PROD':{'1':None, '2':None, '3':None, '4':None, '5':None},
-                'ENRG':{'1':None, '2':None, '3':None, '4':None, '5':None},
-                'DEV': {'1':None, '2':None, '3':None, '4':None, '5':None},
-                'HAB': {'1':None, '2':None, '3':None, '4':None, '5':None}
-            }})
+        self.Earth_Moon = Moon(self, 'Moon', 'models/planet_sphere',
+                            'models/moon_1k_tex.jpg', self.orbit_root_moon,
+                            0.1, 0.1, False, 0, {'Cheese':'Rare', 'Coal':'Common'})
 
     def rotatePlanets(self):
-        self.day_period_sun = self.sun.hprInterval(20, (360, 0, 0))
+        self.day_period_sun = self.Sun.model.hprInterval(20, (360, 0, 0))
 
         self.orbit_period_mercury = self.orbit_root_mercury.hprInterval(
             (0.241 * self.yearscale), (360, 0, 0))
-        self.day_period_mercury = self.mercury.hprInterval(
+        self.day_period_mercury = self.Mercury.model.hprInterval(
             (59 * self.dayscale), (360, 0, 0))
 
         self.orbit_period_venus = self.orbit_root_venus.hprInterval(
             (0.615 * self.yearscale), (360, 0, 0))
-        self.day_period_venus = self.venus.hprInterval(
+        self.day_period_venus = self.Venus.model.hprInterval(
             (243 * self.dayscale), (360, 0, 0))
 
         self.orbit_period_earth = Sequence(
             self.orbit_root_earth.hprInterval(self.yearscale, (360, 0, 0))
             , Func(self.incYear))
-        self.day_period_earth = Sequence(self.earth.hprInterval(
+        self.day_period_earth = Sequence(self.Earth.model.hprInterval(
             self.dayscale, (360, 0, 0)), Func(self.incDay))
 
         self.orbit_period_moon = self.orbit_root_moon.hprInterval(
             (.0749 * self.yearscale), (360, 0, 0))
-        self.day_period_moon = self.moon.hprInterval(
+        self.day_period_moon = self.Earth_Moon.model.hprInterval(
             (.0749 * self.yearscale), (360, 0, 0))
 
         self.orbit_period_mars = self.orbit_root_mars.hprInterval(
             (1.881 * self.yearscale), (360, 0, 0))
-        self.day_period_mars = self.mars.hprInterval(
+        self.day_period_mars = self.Mars.model.hprInterval(
             (1.03 * self.dayscale), (360, 0, 0))
 
         self.day_period_sun.loop()
@@ -542,6 +466,11 @@ class World(DirectObject):
                                     'img':'models/placeholder.jpg'}
             }
         }
+
+    def set_capital_planet(self):
+        self.capitalPlanet = self.Earth
+        self.Earth.probed = True
+        self.Earth.colonised = True
 
     def createGui(self):
         self.buttonModel = loader.loadModel('models/gui/buttons/simple_button_maps.egg')

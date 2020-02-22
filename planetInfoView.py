@@ -6,13 +6,14 @@ from panda3d.core import *
 
 import math
 from planetBuildView import PlanetBuildView
+from star import Star
 
 
 class PlanetInfoView():
 
     def __init__(self, world):
         self.world = world
-        self.selectedObject = None
+        self.obj = None
         self.selectedObjectName = None
         self.planetData = None
         self.followObjectScale = None
@@ -24,10 +25,10 @@ class PlanetInfoView():
     def reset(self, obj):
         self.clear()
 
-        self.selectedObject = obj
-        self.selectedObjectName = obj.getNetTag('name')
-        self.planetData = self.world.planetDB[self.selectedObjectName]
-        self.followObjectScale = self.planetData['scale']
+        self.obj = obj
+        self.selectedObjectName = obj.name
+        #self.planetData = self.world.planetDB[self.selectedObjectName]
+        self.followObjectScale = obj.scale
         self.NewPlanetBuildView = self.world.NewPlanetBuildView
 
         self.fill()
@@ -39,41 +40,41 @@ class PlanetInfoView():
         # Fills the content of the planet info gui every time a planet gets selected
 
         objID = self.selectedObjectName
-        self.PlanetInfoTitle['text']=self.planetData['name']
+        self.PlanetInfoTitle['text']=self.obj.name
 
-        if self.planetData['type']=='Star' or self.planetData['probed']:
+        if type(self.obj) == Star or self.obj.probed:
             PlanetInfoAttributesText = (
-                'Type:\t\t' + str(self.planetData['type']) + '\n'
-                'Diameter:\t\t' + str(self.planetData['scale'] * 10**5) + '\n')
-            if self.planetData['type'] != "Star":
+                'Type:\t\t' + str(type(self.obj).__name__) + '\n'
+                'Diameter:\t\t' + str(self.obj.scale * 10**5) + '\n')
+            if type(self.obj) != Star:
                 PlanetInfoAttributesText += (
-                    'Distance to Sun:\t' + str(self.planetData['dist'] * 10**7) + '\n'
-                    'Athmosphere:\t' + str(self.planetData['athm']) + '\n'
-                    'Windstrength:\t' + str(self.planetData['wind']) + '\n')
+                    'Distance to Sun:\t' + str(self.obj.distance * 10**7) + '\n'
+                    'Athmosphere:\t' + str(self.obj.athmosphere) + '\n'
+                    'Windstrength:\t' + str(self.obj.wind) + '\n')
 
             self.PlanetInfoAttributesTable['text']=PlanetInfoAttributesText
 
 
-            if self.planetData['type'] != "Star":
+            if type(self.obj) != Star:
                 PlanetInfoRescourceText = 'Rescources:\n'
-                for k,v in self.planetData['resc'].items():
+                for k,v in self.obj.rescources.items():
                     PlanetInfoRescourceText += k + ':\t\t' + str(v) + '\n'
 
                 self.PlanetInfoRescourceTable['text']=PlanetInfoRescourceText
 
-                if 'goods' in self.planetData:
+                if self.obj.goods:
                     PlanetInfoGoodsText = 'Goods:\n'
-                    for k,v in self.planetData['goods'].items():
+                    for k,v in self.obj.goods.items():
                         PlanetInfoGoodsText += k + ':\t' + str(v) + '\n'
 
                     self.PlanetInfoGoodsTable['text']=PlanetInfoGoodsText
                 
                 self.PlanetInfoENRGTable['text']=(
-                    'Energy capacity:\t' + str(self.planetData['enrgCap']) + '\n'
-                    'Energy usage:\t' + str(self.planetData['enrgUsg']) + '\n\n'
+                    'Energy capacity:\t' + str(self.obj.energy_cap) + '\n'
+                    'Energy usage:\t' + str(self.obj.energy_usg) + '\n\n'
                     
-                    'Habitation capacity:\t' + str(self.planetData['habCap']) + '\n'
-                    'Population count:\t' + str(self.planetData['pop']) + '\n\n'
+                    'Habitation capacity:\t' + str(self.obj.habitation_cap) + '\n'
+                    'Population count:\t' + str(self.obj.population) + '\n\n'
 
                     'Per Capita GDP:\t' + str(self.world.taxFactor)
                 )
@@ -103,17 +104,17 @@ class PlanetInfoView():
         self.PlanetInfoPanel.hide()
 
     def checkButtons(self):
-        if self.planetData['type'] == 'Star':
+        if type(self.obj) == Star:
             self.PlanetInfoBuildButton.hide()
             self.PlanetInfoColoniseButton.hide()
             self.PlanetInfoProbeButton.hide()
             return
         
-        if self.planetData['colonised']:
+        if self.obj.colonised:
             self.PlanetInfoBuildButton.show()
             self.PlanetInfoColoniseButton.hide()
             self.PlanetInfoProbeButton.hide()
-        elif self.planetData['probed']:
+        elif self.obj.probed:
             self.PlanetInfoBuildButton.hide()
             self.PlanetInfoColoniseButton.show()
             self.PlanetInfoProbeButton.hide()
@@ -123,9 +124,9 @@ class PlanetInfoView():
             self.PlanetInfoProbeButton.show()
 
     def loadMessages(self):
-        if 'messages' in self.world.planetDB[self.selectedObjectName]:
+        if type(self.obj) != Star:
             i=0
-            for id, message in self.world.planetDB[self.selectedObjectName]['messages'].items():
+            for id, message in self.obj.messages.items():
                 mText = message['text'] + '\n' + str(message['value'])
                 
                 msgPanel = DirectFrame(
@@ -143,73 +144,72 @@ class PlanetInfoView():
 
     def showProbeMission(self):
             planet1 = self.world.capitalPlanet
-            planet2 = self.selectedObject
+            planet2 = self.obj
             name = self.selectedObjectName
             dist = round(self.world.calcDistanceBetweenPlanets(planet1, planet2),3)
-            time = round(dist * 15)
+            time = round(dist * 2)
             cost = 500 + round(dist * 67)
             missionText = "Probe misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
-            self.world.createProblemDialog(missionText, 'yesNo', self.startProbeMission, [planet1, planet2, name, dist, time, cost])
+            self.world.createProblemDialog(missionText, 'yesNo', self.startProbeMission, [planet2, name, dist, time, cost])
 
-    def startProbeMission(self, planet1, planet2, name, dist, time, cost):
-        id = 'probe' + planet2.getNetTag('name')
-        self.world.addMessage(planet2, id, 'info', 'Probing Mission', time)
-        taskMgr.doMethodLater(1, self.probeMissionTask, 'probeMissionTask', extraArgs=[planet2, id], appendTask=True)
+    def startProbeMission(self, planet, name, dist, time, cost):
+
         if self.world.money >= cost:
             self.world.money-=cost
+            id = 'probe' + planet.name
+            self.world.addMessage(planet, id, 'info', 'Probing Mission', time)
+            taskMgr.doMethodLater(1, self.probeMissionTask, 'probeMissionTask', extraArgs=[planet, id], appendTask=True)
         else:
             self.world.createProblemDialog("Not enough Money")
 
-    def probeMissionTask(self, planet2, id, task):
-        planetName = planet2.getNetTag('name')
-        if self.world.planetDB[planetName]['messages'][id]['value'] > 0:
-            self.world.planetDB[planetName]['messages'][id]['value']-=1
+    def probeMissionTask(self, planet, id, task):
+        if planet.messages[id]['value'] > 0:
+            planet.messages[id]['value']-=1
         else:
-            self.world.planetDB[planetName].update({'probed':True})
-            self.world.planetDB[planetName]['messages'].pop(id)
+            planet.probed = True
+            planet.messages.pop(id)
             return task.done
         return task.again
 
 
     def showColoniseMission(self):
         planet1 = self.world.capitalPlanet
-        planet2 = self.selectedObject
+        planet2 = self.obj
         name = self.selectedObjectName
         dist = round(self.world.calcDistanceBetweenPlanets(planet1, planet2),3)
-        time = round(dist * 30)
+        time = round(dist * 4)
         cost = 3900 + round(dist * 123)
         missionText = "Colonise misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
         self.world.createProblemDialog(missionText, 'yesNo', self.startColoniseMission, [planet1, planet2, name, dist, time, cost])
 
-    def startColoniseMission(self, planet1, planet2, name, dist, time, cost):
+    def startColoniseMission(self, planet, name, dist, time, cost):
         if self.world.money >= cost:
             self.world.money-=cost
-            id = 'colonise' + planet2.getNetTag('name')
-            self.world.addMessage(planet2, id, 'info', 'Colonise Mission', time)
-            taskMgr.doMethodLater(1, self.coloniseMissionTask, 'coloniseMissionTask', extraArgs=[planet1, planet2, id, name, dist, time, cost], appendTask=True)
+            id = 'colonise' + planet.name
+            self.world.addMessage(planet, id, 'info', 'Colonise Mission', time)
+            taskMgr.doMethodLater(1, self.coloniseMissionTask, 'coloniseMissionTask', extraArgs=[planet, id], appendTask=True)
         else:
             self.world.createProblemDialog("Not enough Money")
 
-    def coloniseMissionTask(self, planet1, planet2, id, name, dist, time, cost, task):
-        planetName = planet2.getNetTag('name')
-        if self.world.planetDB[planetName]['messages'][id]['value'] > 0:
-            self.world.planetDB[planetName]['messages'][id]['value']-=1
+    def coloniseMissionTask(self, planet, id, task):
+        if planet.messages[id]['value'] > 0:
+            planet.messages[id]['value']-=1
         else:
-            self.world.planetDB[planetName].update({'colonised':True})
-            self.world.planetDB[planetName]['messages'].pop(id)
+            planet.colonised = True
+            planet.messages.pop(id)
             taskMgr.doMethodLater(self.world.PopulationTimeDelta, 
                                   self.world.populatePlanetTask, 
                                   'populatePlanetTask', 
-                                  extraArgs=[planetName], 
+                                  extraArgs=[planet], 
                                   appendTask=True)
             return task.done
         return task.again
 
 
     def togglePlanetBuildMode(self, mode=False):
-        pos = self.selectedObject.getPos(base.render)
+        pos = self.obj.getPos()
         camPos = camera.getPos()
-        obj = self.selectedObject
+        obj = self.obj
         scale = self.followObjectScale
 
         if mode:
@@ -224,7 +224,7 @@ class PlanetInfoView():
             zoomInterval.start()
 
             taskMgr.add(self.world.followCam, 'buildcamTask', extraArgs=[obj, scale, 'build'], appendTask=True)
-            taskMgr.add(self.NewPlanetBuildView.refreshTask, 'quickinfoTask', extraArgs=[self.selectedObjectName], appendTask=True)
+            taskMgr.add(self.NewPlanetBuildView.refreshTask, 'quickinfoTask', extraArgs=[obj], appendTask=True)
 
         else:
             self.NewPlanetBuildView.hide()
