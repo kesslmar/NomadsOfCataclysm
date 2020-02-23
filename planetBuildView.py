@@ -40,7 +40,7 @@ class PlanetBuildView():
         section = self.ActiveBuildSection
         for k,v in self.world.buildingsDB[section].items():
             newBlueprint = DirectButton(
-                frameColor=(0.15, 0.15, 0.15, 0.9),
+                frameColor=(0.15, 0.15, 0.15, 0.7),
                 frameSize=(-0.4, 0.4, -0.125, 0.125), relief='flat',
                 text=k, text_fg=(0,0,0,0),
                 pos=(0, 0, 0.53-i*0.25), parent=self.PlanetBuildPanel,
@@ -386,33 +386,35 @@ class PlanetBuildView():
 
     def createGui(self):
 
+        self.build_panel_map = loader.loadModel('models/gui/panels/blueprintlist_maps.egg').find('**/blueprintlist')
+        self.build_description_map = loader.loadModel('models/gui/panels/blueprintdescription_maps.egg').find('**/blueprintdescription')
+
         self.PlanetBuildPanel = DirectFrame(
-            frameColor=(0.15, 0.15, 0.15, 0.9),
-            frameSize=(-0.4, 1.23, 0.66, -0.65),
-            pos=(-1.3, 0, 0))
+            frameColor=(0.15, 0.15, 0.15, 0), frameSize=(-0.4, 1.23, 0.66, -0.65), pos=(-1.35, 0, 0),
+            geom=self.build_panel_map, geom_scale=(0.77,1,0.77), geom_pos=(0,0,0.08))
         self.PlanetBuildPanel.hide()
 
         self.PlanetBuildPanelContent = []
 
-        self.PlanetBuildPanelRuler = DirectFrame(frameColor=(0,0,0,0.9), frameSize=(-0.003, 0.003, -1.305, 0),
-            pos=(0.408,0,0.657), parent=self.PlanetBuildPanel)
+        #self.PlanetBuildPanelRuler = DirectFrame(frameColor=(0,0,0,0.9), frameSize=(-0.003, 0.003, -1.305, 0),
+        #    pos=(0.408,0,0.657), parent=self.PlanetBuildPanel)
 
         self.PlanetBuildDescriptionField = DirectFrame(
-            frameColor=(0.2, 0.2, 0.22, 0.9),
+            frameColor=(0.2, 0.2, 0.22, 0),
             frameSize=(-0.4, 0.4, 0.25, -0.25),
-            pos=(0.825, 0, 0.41), parent=self.PlanetBuildPanel)
+            pos=(0.825, 0, 0.41), geom=self.build_description_map, geom_scale=(0.7,1,0.77), geom_pos=(0.02,0,-0.047), parent=self.PlanetBuildPanel)
 
         self.PlanetBuildDescriptionText = DirectLabel(text='', 
-            pos=(-0.36, 0, 0.18), text_fg=(1,1,1,1), frameColor=(0,0,0,0), text_scale = 0.05, text_wordwrap=15,
+            pos=(-0.35, 0, 0.19), text_fg=(1,1,1,1), frameColor=(0,0,0,0), text_scale = 0.05, text_wordwrap=15,
             frameSize=(0,0.8,0,0.5), parent = self.PlanetBuildDescriptionField, text_align=TextNode.ALeft)
 
         self.PlanetBuildConstructButton = DirectButton(text='Construct ->', 
-            pos=(-0.122,0,-0.37), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
+            pos=(-0.095,0,-0.48), pad=(0.05, 0.02), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
             command=self.constructBuilding, parent=self.PlanetBuildDescriptionField, state='disabled')
 
         self.PlanetBuildSalvageButton  = DirectButton(text='<- Salvage', 
-            pos=(-0.126,0,-0.52), pad=(0.085, 0.013), borderWidth=(0.01,0.01),
+            pos=(-0.099,0,-0.62), pad=(0.085, 0.013), borderWidth=(0.01,0.01),
             text_scale=0.08, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
             command=self.salvageBuilding, parent=self.PlanetBuildDescriptionField, state='disabled')
 
@@ -474,7 +476,7 @@ class PlanetBuildView():
         slotMaps = (slotModel.find('**/normal'),slotModel.find('**/active'),
                     slotModel.find('**/normal'),slotModel.find('**/disabled'))
         
-        self.PlanetBuildSlotContainer = DirectFrame(pos=(1.45,0,0), frameColor=(0.5,0.5,0.5,1))
+        self.PlanetBuildSlotContainer = DirectFrame(pos=(1.5,0,0), frameColor=(0.5,0.5,0.5,1))
         self.PlanetBuildSlotContainer.reparentTo(self.PlanetBuildPanel)
 
         self.PlanetBuildSlotButtons = [
