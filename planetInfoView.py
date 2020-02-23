@@ -20,21 +20,20 @@ class PlanetInfoView():
         self.NewPlanetBuildView = None
         self.messagesDict = {}
 
-        self.createGui()
+        self.create_gui()
         
     def reset(self, obj):
         self.clear()
 
         self.obj = obj
         self.selectedObjectName = obj.name
-        #self.planetData = self.world.planetDB[self.selectedObjectName]
         self.followObjectScale = obj.scale
         self.NewPlanetBuildView = self.world.NewPlanetBuildView
 
         self.fill()
-        taskMgr.doMethodLater(1, self.UpdateTask, 'updatePlanetInfoTask')
-        self.checkButtons()
-        self.loadMessages()
+        taskMgr.doMethodLater(1, self.update_view_task, 'updatePlanetInfoTask')
+        self.check_buttons()
+        self.load_messages()
     
     def fill(self):
         # Fills the content of the planet info gui every time a planet gets selected
@@ -81,11 +80,11 @@ class PlanetInfoView():
         else:
             self.PlanetInfoAttributesTable['text']='???'
 
-    def UpdateTask(self, task):
+    def update_view_task(self, task):
         self.fill()
-        self.checkButtons()
-        self.emptyMessages()
-        self.loadMessages()
+        self.check_buttons()
+        self.empty_messages()
+        self.load_messages()
         return task.again
 
     def clear(self):
@@ -95,7 +94,7 @@ class PlanetInfoView():
         self.PlanetInfoGoodsTable['text']=''
         self.PlanetInfoENRGTable['text']=''
 
-        self.emptyMessages()
+        self.empty_messages()
 
     def show(self):
         self.PlanetInfoPanel.show()
@@ -103,7 +102,7 @@ class PlanetInfoView():
     def hide(self):
         self.PlanetInfoPanel.hide()
 
-    def checkButtons(self):
+    def check_buttons(self):
         if type(self.obj) == Star:
             self.PlanetInfoBuildButton.hide()
             self.PlanetInfoColoniseButton.hide()
@@ -123,7 +122,7 @@ class PlanetInfoView():
             self.PlanetInfoColoniseButton.hide()
             self.PlanetInfoProbeButton.show()
 
-    def loadMessages(self):
+    def load_messages(self):
         if type(self.obj) != Star:
             i=0
             for id, message in self.obj.messages.items():
@@ -136,33 +135,33 @@ class PlanetInfoView():
                 self.messagesDict.update({id: msgPanel})
                 i+=1
     
-    def emptyMessages(self):
+    def empty_messages(self):
         for id, panel in self.messagesDict.items():
             panel.destroy()
         self.messagesDict = {}
 
 
-    def showProbeMission(self):
+    def show_probe_mission(self):
             planet1 = self.world.capitalPlanet
             planet2 = self.obj
             name = self.selectedObjectName
-            dist = round(self.world.calcDistanceBetweenPlanets(planet1, planet2),3)
+            dist = round(self.world.calc_distance_between_planets(planet1, planet2),3)
             time = round(dist * 2)
             cost = 500 + round(dist * 67)
             missionText = "Probe misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
-            self.world.createProblemDialog(missionText, 'yesNo', self.startProbeMission, [planet2, name, dist, time, cost])
+            self.world.create_dialog(missionText, 'yesNo', self.start_probe_mission, [planet2, name, dist, time, cost])
 
-    def startProbeMission(self, planet, name, dist, time, cost):
+    def start_probe_mission(self, planet, name, dist, time, cost):
 
         if self.world.money >= cost:
             self.world.money-=cost
             id = 'probe' + planet.name
-            self.world.addMessage(planet, id, 'info', 'Probing Mission', time)
-            taskMgr.doMethodLater(1, self.probeMissionTask, 'probeMissionTask', extraArgs=[planet, id], appendTask=True)
+            self.world.add_message(planet, id, 'info', 'Probing Mission', time)
+            taskMgr.doMethodLater(1, self.probe_mission_task, 'probeMissionTask', extraArgs=[planet, id], appendTask=True)
         else:
-            self.world.createProblemDialog("Not enough Money")
+            self.world.create_dialog("Not enough Money")
 
-    def probeMissionTask(self, planet, id, task):
+    def probe_mission_task(self, planet, id, task):
         if planet.messages[id]['value'] > 0:
             planet.messages[id]['value']-=1
         else:
@@ -172,33 +171,33 @@ class PlanetInfoView():
         return task.again
 
 
-    def showColoniseMission(self):
+    def show_colonise_mission(self):
         planet1 = self.world.capitalPlanet
         planet2 = self.obj
         name = self.selectedObjectName
-        dist = round(self.world.calcDistanceBetweenPlanets(planet1, planet2),3)
+        dist = round(self.world.calc_distance_between_planets(planet1, planet2),3)
         time = round(dist * 4)
         cost = 3900 + round(dist * 123)
         missionText = "Colonise misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name,dist,time,cost)
-        self.world.createProblemDialog(missionText, 'yesNo', self.startColoniseMission, [planet1, planet2, name, dist, time, cost])
+        self.world.create_dialog(missionText, 'yesNo', self.start_colonise_mission, [planet1, planet2, name, dist, time, cost])
 
-    def startColoniseMission(self, planet, name, dist, time, cost):
+    def start_colonise_mission(self, planet, name, dist, time, cost):
         if self.world.money >= cost:
             self.world.money-=cost
             id = 'colonise' + planet.name
-            self.world.addMessage(planet, id, 'info', 'Colonise Mission', time)
-            taskMgr.doMethodLater(1, self.coloniseMissionTask, 'coloniseMissionTask', extraArgs=[planet, id], appendTask=True)
+            self.world.add_message(planet, id, 'info', 'Colonise Mission', time)
+            taskMgr.doMethodLater(1, self.colonise_mission_task, 'coloniseMissionTask', extraArgs=[planet, id], appendTask=True)
         else:
-            self.world.createProblemDialog("Not enough Money")
+            self.world.create_dialog("Not enough Money")
 
-    def coloniseMissionTask(self, planet, id, task):
+    def colonise_mission_task(self, planet, id, task):
         if planet.messages[id]['value'] > 0:
             planet.messages[id]['value']-=1
         else:
             planet.colonised = True
             planet.messages.pop(id)
-            taskMgr.doMethodLater(self.world.PopulationTimeDelta, 
-                                  self.world.populatePlanetTask, 
+            taskMgr.doMethodLater(self.world.population_time_delta, 
+                                  self.world.populate_planet_task, 
                                   'populatePlanetTask', 
                                   extraArgs=[planet], 
                                   appendTask=True)
@@ -206,7 +205,7 @@ class PlanetInfoView():
         return task.again
 
 
-    def togglePlanetBuildMode(self, mode=False):
+    def toggle_planet_build_mode(self, mode=False):
         pos = self.obj.getPos()
         camPos = camera.getPos()
         obj = self.obj
@@ -223,8 +222,8 @@ class PlanetInfoView():
                 Func(self.NewPlanetBuildView.show))
             zoomInterval.start()
 
-            taskMgr.add(self.world.followCam, 'buildcamTask', extraArgs=[obj, scale, 'build'], appendTask=True)
-            taskMgr.add(self.NewPlanetBuildView.refreshTask, 'quickinfoTask', extraArgs=[obj], appendTask=True)
+            taskMgr.add(self.world.set_follow_cam_task, 'buildcamTask', extraArgs=[obj, scale, 'build'], appendTask=True)
+            taskMgr.add(self.NewPlanetBuildView.refresh_quickinfo_task, 'quickinfoTask', extraArgs=[obj], appendTask=True)
 
         else:
             self.NewPlanetBuildView.hide()
@@ -238,11 +237,11 @@ class PlanetInfoView():
                 Func(self.show))
             zoomInterval.start()
             
-            taskMgr.add(self.world.followCam, 'infocamTask', extraArgs=[obj, scale, 'info'], appendTask=True)
+            taskMgr.add(self.world.set_follow_cam_task, 'infocamTask', extraArgs=[obj, scale, 'info'], appendTask=True)
 
         return None
 
-    def createGui(self):
+    def create_gui(self):
         self.infoPanelMap = loader.loadModel('models/gui/panels/planetinfopanel_maps.egg').find('**/planetinfopanel')
         self.problemPanelMap = loader.loadModel('models/gui/panels/planetproblempanel_maps.egg').find('**/planetproblempanel')
 
@@ -274,23 +273,23 @@ class PlanetInfoView():
         self.PlanetInfoCloseButton = DirectButton(text='Close', 
             pos=(-0.68,0,-0.85), scale=0.5, pad=(-0.1, -0.09), frameColor=(0,0,0,0),
             text_scale=0.15, text_pos=(0,-0.03), text_fg=(1,1,1,1), geom_scale=(0.7,0,1),
-            command=self.world.togglePlanetInfoMode, extraArgs=[False], parent=self.PlanetInfoPanel,
+            command=self.world.toggle_planet_info_mode, extraArgs=[False], parent=self.PlanetInfoPanel,
             geom=(self.world.buttonMaps))
 
         self.PlanetInfoProbeButton = DirectButton(text='Probe', 
             pos=(1.45,0,0.55), pad=(0.055, 0.02), borderWidth=(0.01,0.01),
             text_scale=0.07, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.showProbeMission, parent=self.PlanetInfoPanel)
+            command=self.show_probe_mission, parent=self.PlanetInfoPanel)
 
         self.PlanetInfoColoniseButton = DirectButton(text='Colonise', 
             pos=(1.85,0,0.55), pad=(0.03, 0.02), borderWidth=(0.01,0.01),
             text_scale=0.07, frameColor=(0.15,0.15,0.15,0.9), text_fg=(1,1,1,1),
-            command=self.showColoniseMission, parent=self.PlanetInfoPanel)
+            command=self.show_colonise_mission, parent=self.PlanetInfoPanel)
 
         self.PlanetInfoBuildButton = DirectButton(text='Build', 
             pos=(1.65,0,-0.58), scale=0.5, pad=(-0.1, -0.09), frameColor=(0,0,0,0),
             text_scale=0.15, text_pos=(0, -0.03), text_fg=(1,1,1,1), geom_scale=(0.5,0,1.2), geom=(self.world.buttonMaps),
-            command=self.togglePlanetBuildMode, extraArgs=[True], parent=self.PlanetInfoPanel)
+            command=self.toggle_planet_build_mode, extraArgs=[True], parent=self.PlanetInfoPanel)
 
         self.PlanetInfoMessagePanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0),
             frameSize=(0, 0, 0, 0),pos=(2.33, 0, 0.16), parent=self.PlanetInfoPanel,

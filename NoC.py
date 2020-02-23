@@ -50,7 +50,7 @@ class World(DirectObject):
         self.yearCounter = 0
         self.dayCounter = 0
         self.money = 2000
-        self.systemPopulation = 0
+        self.system_population = 0
         self.orbitscale = 10
         self.sizescale = 0.6
         self.camSpeed = 10
@@ -58,7 +58,7 @@ class World(DirectObject):
         self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
         
         # Global game balance variables
-        self.PopulationTimeDelta = 3
+        self.population_time_delta = 3
         self.taxFactor = 0.1
         self.salvageFactor = 0.75
         self.foodConsumingFactor = 0.75
@@ -68,7 +68,7 @@ class World(DirectObject):
         self.capitalPlanet = None
 
         self.galaxy_objects = []
-        self.buildingsDB = {} #Will contain all buildable structures
+        self.BuildingsDB = {} #Will contain all buildable structures
 
         # Everything that's needed to detect selecting objects with mouse
         self.pickerNode = CollisionNode('mouseRay')
@@ -81,20 +81,20 @@ class World(DirectObject):
         base.cTrav.addCollider(self.pickerNP, self.collQueue)
 
         # Set up the start screen
-        self.createGui()
+        self.create_gui()
         self.NewPlanetInfoView = PlanetInfoView(self)
         self.NewPlanetBuildView = PlanetBuildView(self)
 
-        self.loadPlanets()      
-        self.rotatePlanets()
-        self.fillBuildingsDB()
+        self.load_planets()      
+        self.rotate_planets()
+        self.fill_BuildingsDB()
         self.set_capital_planet()
 
         # Add all constantly running checks to the taskmanager
-        taskMgr.add(self.setCam, "setcamTask")
-        taskMgr.add(self.redrawHeadGUI, "redrawHeadGUITask")
-        taskMgr.doMethodLater(self.PopulationTimeDelta, self.populatePlanetTask, 'populatePlanetTask', extraArgs=[self.Earth], appendTask=True)
-        taskMgr.doMethodLater(2, self.generateMoneyTask, 'generateMoneyTask')
+        taskMgr.add(self.update_cam_task, "setcamTask")
+        taskMgr.add(self.redraw_head_gui, "redrawHeadGUITask")
+        taskMgr.doMethodLater(self.population_time_delta, self.populate_planet_task, 'populatePlanetTask', extraArgs=[self.Earth], appendTask=True)
+        taskMgr.doMethodLater(2, self.generate_money_task, 'generateMoneyTask')
 
         # Open up all listeners for varous mouse and keyboard inputs
         self.accept("escape", sys.exit)
@@ -114,9 +114,9 @@ class World(DirectObject):
         self.accept("arrow_right-up", self.releaseKey, ["right"])
         self.accept("d", self.pressKey, ["right"])
         self.accept("d-up", self.releaseKey, ["right"])
-        self.accept("mouse1", self.handleMouseClick)
-        self.accept("wheel_up", self.handleZoom, ['in'])
-        self.accept("wheel_down", self.handleZoom, ['out'])
+        self.accept("mouse1", self.handle_mouse_click)
+        self.accept("wheel_up", self.handle_zoom, ['in'])
+        self.accept("wheel_down", self.handle_zoom, ['out'])
     
     # end of init function
 
@@ -135,7 +135,7 @@ class World(DirectObject):
 
     # Camera, controle and main GUI functions
     #----------------------------------------
-    def setCam(self, task):
+    def update_cam_task(self, task):
         dt = globalClock.getDt()
         if self.keyDict['up']: camera.setPos(camera.getPos()[0],camera.getPos()[1] + self.camSpeed * dt, camera.getPos()[2])
         elif self.keyDict['down']: camera.setPos(camera.getPos()[0],camera.getPos()[1] - self.camSpeed * dt, camera.getPos()[2])
@@ -143,7 +143,7 @@ class World(DirectObject):
         elif self.keyDict['right']: camera.setPos(camera.getPos()[0] + self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
         return task.cont
 
-    def handleZoom(self, direction):
+    def handle_zoom(self, direction):
         dt = globalClock.getDt()
         camPos = camera.getPos()
         if not self.PlanetInfoModeOn:    
@@ -154,7 +154,7 @@ class World(DirectObject):
                 zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]-self.zoomSpeed,camPos[2]+self.zoomSpeed,), camPos)
                 zoomInterval.start()
 
-    def followCam(self, obj, scale, mode, task):
+    def set_follow_cam_task(self, obj, scale, mode, task):
         pos = obj.getPos()
 
         if mode=='info':
@@ -163,7 +163,7 @@ class World(DirectObject):
             camera.setPos(pos[0]-scale * 0.9, pos[1]-scale * 3.4, 0)
         return task.cont
 
-    def handleMouseClick(self):
+    def handle_mouse_click(self):
         mpos = base.mouseWatcherNode.getMouse()
         self.pickerRay.setFromLens(base.camNode, mpos.getX(), mpos.getY())
         base.cTrav.traverse(render)
@@ -173,28 +173,28 @@ class World(DirectObject):
             pickedObj = pickedObj.findNetTag('clickable')
             if not pickedObj.isEmpty() and not self.PlanetInfoModeOn:
                 instance = pickedObj.getPythonTag('instance')
-                self.togglePlanetInfoMode(True, instance)
+                self.toggle_planet_info_mode(True, instance)
 
-    def redrawHeadGUI(self, task):
+    def redraw_head_gui(self, task):
         self.HeadGUIText['text'] = ('Year '+str(self.yearCounter)+', '
                                     'Day '+str(self.dayCounter) + ', '
                                     'Money: ' +str(self.money) + ', '
-                                    'Population: ' +str(self.systemPopulation))
+                                    'Population: ' +str(self.system_population))
         return task.cont
 
-    def createProblemDialog(self, problemText, form='ok', function=lambda: None, args=[]):
+    def create_dialog(self, problemText, form='ok', function=lambda: None, args=[]):
         if form == 'ok':
             self.ProblemDialog = OkDialog(
-                dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),
+                dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanup_dialog, midPad=(-0.15),
                 frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
                 extraArgs=[function, args])
         elif form == 'yesNo':
             self.ProblemDialog = YesNoDialog(
-                dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanupProblemDialog, midPad=(-0.15),
+                dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanup_dialog, midPad=(-0.15),
                 frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
                 extraArgs=[function, args])
 
-    def cleanupProblemDialog(self, value, function, args):
+    def cleanup_dialog(self, value, function, args):
         self.ProblemDialog.cleanup()
         if value:
             function(*args)
@@ -203,7 +203,7 @@ class World(DirectObject):
 
     # Functions to interact with the planet info view
     #------------------------------------------------
-    def togglePlanetInfoMode(self, mode=False, obj=None):
+    def toggle_planet_info_mode(self, mode=False, obj=None):
         
         if mode:
             self.MapViewPanel.hide()
@@ -217,7 +217,7 @@ class World(DirectObject):
                 Func(self.NewPlanetInfoView.show)
             )
             zoomInterval.start()
-            taskMgr.add(self.followCam, 'infocamTask', extraArgs=[obj, obj.scale, 'info'], appendTask=True)
+            taskMgr.add(self.set_follow_cam_task, 'infocamTask', extraArgs=[obj, obj.scale, 'info'], appendTask=True)
             
         else:
             self.PlanetInfoModeOn = False
@@ -231,7 +231,7 @@ class World(DirectObject):
 
     # Diverse collection of gameplay functions and tasks
     #---------------------------------------------------
-    def populatePlanetTask(self, planet, task):
+    def populate_planet_task(self, planet, task):
         habProblem = planet.habitation_cap <= planet.population
         foodProblem = (not('Vegetable crates' in planet.goods) or 
                       planet.goods['Vegetable crates'] < planet.population)
@@ -250,19 +250,22 @@ class World(DirectObject):
             planet.goods['Vegetable crates'] -= round(planet.population * self.foodConsumingFactor)
         return task.again
 
-    def generateMoneyTask(self, task):
+    def count_system_population(self):
         wholePop = 0
         for obj in self.galaxy_objects:
             if type(obj) != Star:
                 wholePop += obj.population
-        self.money += round(wholePop * self.taxFactor)
-        self.systemPopulation = wholePop
+        self.system_population = wholePop
+
+    def generate_money_task(self, task):
+        self.count_system_population()
+        self.money += round(self.system_population * self.taxFactor)
         return task.again
 
-    def addMessage(self, planet, id, mType, text, value):
+    def add_message(self, planet, id, mType, text, value):
         planet.messages.update({id: {'type':mType, 'text':text, 'value':value}})
 
-    def calcDistanceBetweenPlanets(self, planet1, planet2):
+    def calc_distance_between_planets(self, planet1, planet2):
         pos1 = planet1.getPos()
         pos2 = planet2.getPos()
         diffX = abs(pos1[0] - pos2[0])
@@ -275,7 +278,7 @@ class World(DirectObject):
     #       Initialisation Functions        *
     #****************************************
 
-    def loadPlanets(self):
+    def load_planets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
         self.orbit_root_venus = render.attachNewNode('orbit_root_venus')
         self.orbit_root_mars = render.attachNewNode('orbit_root_mars')
@@ -317,7 +320,7 @@ class World(DirectObject):
                             'models/moon_1k_tex.jpg', self.orbit_root_moon,
                             0.1, 0.1, False, 0, {'Cheese':'Rare', 'Coal':'Common'})
 
-    def rotatePlanets(self):
+    def rotate_planets(self):
         self.day_period_sun = self.Sun.model.hprInterval(20, (360, 0, 0))
 
         self.orbit_period_mercury = self.orbit_root_mercury.hprInterval(
@@ -358,8 +361,8 @@ class World(DirectObject):
         self.orbit_period_mars.loop()
         self.day_period_mars.loop()
 
-    def fillBuildingsDB(self):
-        self.buildingsDB = {
+    def fill_BuildingsDB(self):
+        self.BuildingsDB = {
             'RESC':{
                 'Organic Farm': {   'Price':250, 'Time':60, 'yield':'Vegetable crates', 'incVal':20, 'yieldText':'20 Vegetable crates per tick',
                                     'req':'Athmosphere', 'decVal':0, 'reqText':'Athmosphere, 200 Energy', 'enrgDrain': 200, 
@@ -471,8 +474,9 @@ class World(DirectObject):
         self.capitalPlanet = self.Earth
         self.Earth.probed = True
         self.Earth.colonised = True
+        self.Earth.population = 100
 
-    def createGui(self):
+    def create_gui(self):
         self.buttonModel = loader.loadModel('models/gui/buttons/simple_button_maps.egg')
         self.buttonMaps = (self.buttonModel.find('**/normal'),self.buttonModel.find('**/active'),
                            self.buttonModel.find('**/normal'),self.buttonModel.find('**/disabled'))
@@ -484,7 +488,7 @@ class World(DirectObject):
         self.HeadGUIText = DirectLabel(text=('Year '+str(self.yearCounter)+', '
                                                 'Day '+str(self.dayCounter) + ', '
                                                 'Money: ' +str(self.money) + ', '
-                                                'Population: ' +str(self.systemPopulation)), 
+                                                'Population: ' +str(self.system_population)), 
             pos=(0.1, 0, -0.085), text_fg=(1, 1, 1, 1), frameColor=(0,0,0,0),
             parent=self.HeadGUIPanel, text_align=TextNode.ALeft, text_scale=.07)
 
