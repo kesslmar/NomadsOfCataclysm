@@ -5,22 +5,21 @@
 #
 # The main goal of this smaller project is for me to dig deeper into software
 # developement with python. Trying to build something like "Settlers of Catan,
-# but in space" it forces me to get familiar with object oriented paradigms 
+# but in space" it forces me to get familiar with object oriented paradigms
 # and to use Github. Most of it is based on the "Solar System Tutorial"
 # from the Panda 1.10 standard package
 
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.DirectObject import DirectObject
 from panda3d.core import *
-from panda3d.core import WindowProperties
+from panda3d.core import (WindowProperties, CollisionNode, GeomNode, CollisionRay)
 from direct.interval.IntervalGlobal import *
 from direct.gui.DirectGui import *
-from direct.gui.OnscreenImage import OnscreenImage
-from direct.task import Task
 
 import sys
 import random
 import math
+import buildingsDB
 
 from planetInfoView import PlanetInfoView
 from planetBuildView import PlanetBuildView
@@ -46,7 +45,7 @@ class World(DirectObject):
 
         # The global variables we use to control the speed and size of objects
         self.yearscale = 900
-        self.dayscale = self.yearscale / 365.0*30
+        self.dayscale = self.yearscale / 365.0 * 30
         self.yearCounter = 0
         self.dayCounter = 0
         self.money = 2000
@@ -54,9 +53,9 @@ class World(DirectObject):
         self.orbitscale = 10
         self.sizescale = 0.6
         self.camSpeed = 10
-        self.zoomSpeed = 5
-        self.keyDict = {'left':False, 'right':False, 'up':False, 'down':False}
-        
+        self.zoomSpeed = 400
+        self.keyDict = {'left': False, 'right': False, 'up': False, 'down': False}
+
         # Global game balance variables
         self.population_time_delta = 3
         self.taxFactor = 0.1
@@ -68,7 +67,7 @@ class World(DirectObject):
         self.capitalPlanet = None
 
         self.galaxy_objects = []
-        self.BuildingsDB = {} #Will contain all buildable structures
+        self.BuildingsDB = {}  # Will contain all buildable structures
 
         # Everything that's needed to detect selecting objects with mouse
         self.pickerNode = CollisionNode('mouseRay')
@@ -85,15 +84,17 @@ class World(DirectObject):
         self.NewPlanetInfoView = PlanetInfoView(self)
         self.NewPlanetBuildView = PlanetBuildView(self)
 
-        self.load_planets()      
+        self.load_planets()
         self.rotate_planets()
-        self.fill_BuildingsDB()
+        self.BuildingsDB = buildingsDB.loadDB()
         self.set_capital_planet()
 
         # Add all constantly running checks to the taskmanager
         taskMgr.add(self.update_cam_task, "setcamTask")
         taskMgr.add(self.redraw_head_gui, "redrawHeadGUITask")
-        taskMgr.doMethodLater(self.population_time_delta, self.populate_planet_task, 'populatePlanetTask', extraArgs=[self.Earth], appendTask=True)
+        taskMgr.doMethodLater(
+            self.population_time_delta, self.populate_planet_task, 'populatePlanetTask',
+            extraArgs=[self.Earth], appendTask=True)
         taskMgr.doMethodLater(2, self.generate_money_task, 'generateMoneyTask')
 
         # Open up all listeners for varous mouse and keyboard inputs
@@ -117,50 +118,61 @@ class World(DirectObject):
         self.accept("mouse1", self.handle_mouse_click)
         self.accept("wheel_up", self.handle_zoom, ['in'])
         self.accept("wheel_down", self.handle_zoom, ['out'])
-    
+
     # end of init function
 
+    # Smaller functions
+    def pressKey(self, key):
+        self.keyDict[key] = True
 
-    # Smaller single-line functions
-    def pressKey(self, key): self.keyDict[key] = True
-    def releaseKey(self, key): self.keyDict[key] = False
-    def incYear(self): self.yearCounter += 1
-    def incDay(self): self.dayCounter += 1
+    def releaseKey(self, key):
+        self.keyDict[key] = False
 
+    def incYear(self):
+        self.yearCounter += 1
 
+    def incDay(self):
+        self.dayCounter += 1
 
-    #****************************************
+    # ****************************************
     #       MAIN GAIMPLAY FUNCTIONS         *
-    #****************************************
+    # ****************************************
 
     # Camera, controle and main GUI functions
-    #----------------------------------------
+    # ----------------------------------------
+
     def update_cam_task(self, task):
         dt = globalClock.getDt()
-        if self.keyDict['up']: camera.setPos(camera.getPos()[0],camera.getPos()[1] + self.camSpeed * dt, camera.getPos()[2])
-        elif self.keyDict['down']: camera.setPos(camera.getPos()[0],camera.getPos()[1] - self.camSpeed * dt, camera.getPos()[2])
-        if self.keyDict['left']: camera.setPos(camera.getPos()[0] - self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
-        elif self.keyDict['right']: camera.setPos(camera.getPos()[0] + self.camSpeed * dt,camera.getPos()[1], camera.getPos()[2])
+        if self.keyDict['up']:
+            camera.setPos(camera.getPos()[0], camera.getPos()[1] + self.camSpeed * dt, camera.getPos()[2])
+        elif self.keyDict['down']:
+            camera.setPos(camera.getPos()[0], camera.getPos()[1] - self.camSpeed * dt, camera.getPos()[2])
+        if self.keyDict['left']:
+            camera.setPos(camera.getPos()[0] - self.camSpeed * dt, camera.getPos()[1], camera.getPos()[2])
+        elif self.keyDict['right']:
+            camera.setPos(camera.getPos()[0] + self.camSpeed * dt, camera.getPos()[1], camera.getPos()[2])
         return task.cont
 
     def handle_zoom(self, direction):
         dt = globalClock.getDt()
         camPos = camera.getPos()
-        if not self.PlanetInfoModeOn:    
+        if not self.PlanetInfoModeOn:
             if direction == 'in' and camera.getPos()[2] > 8:
-                zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]+self.zoomSpeed,camPos[2]-self.zoomSpeed,), camPos)
+                zoomInterval = camera.posInterval(
+                    0.1, Point3(camPos[0], camPos[1] + self.zoomSpeed * dt, camPos[2] - self.zoomSpeed * dt), camPos)
                 zoomInterval.start()
             elif direction == 'out' and camera.getPos()[2] < 50:
-                zoomInterval = camera.posInterval(0.1, Point3(camPos[0],camPos[1]-self.zoomSpeed,camPos[2]+self.zoomSpeed,), camPos)
+                zoomInterval = camera.posInterval(
+                    0.1, Point3(camPos[0], camPos[1] - self.zoomSpeed * dt, camPos[2] + self.zoomSpeed * dt), camPos)
                 zoomInterval.start()
 
     def set_follow_cam_task(self, obj, scale, mode, task):
         pos = obj.getPos()
 
-        if mode=='info':
-            camera.setPos(pos[0]-scale * 1.25, pos[1]-scale * 4, scale * 4)
-        if mode=='build':
-            camera.setPos(pos[0]-scale * 0.9, pos[1]-scale * 3.4, 0)
+        if mode == 'info':
+            camera.setPos(pos[0] - scale * 1.25, pos[1] - scale * 4, scale * 4)
+        if mode == 'build':
+            camera.setPos(pos[0] - scale * 0.9, pos[1] - scale * 3.4, 0)
         return task.cont
 
     def handle_mouse_click(self):
@@ -176,35 +188,34 @@ class World(DirectObject):
                 self.toggle_planet_info_mode(True, instance)
 
     def redraw_head_gui(self, task):
-        self.HeadGUIText['text'] = ('Year '+str(self.yearCounter)+', '
-                                    'Day '+str(self.dayCounter) + ', '
-                                    'Money: ' +str(self.money) + ', '
-                                    'Population: ' +str(self.system_population))
+        self.HeadGUIText['text'] = ('Year ' + str(self.yearCounter) + ', '
+                                    'Day ' + str(self.dayCounter) + ', '
+                                    'Money: ' + str(self.money) + ', '
+                                    'Population: ' + str(self.system_population))
         return task.cont
 
     def create_dialog(self, problemText, form='ok', function=lambda: None, args=[]):
         if form == 'ok':
             self.ProblemDialog = OkDialog(
-                dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanup_dialog, midPad=(-0.15),
-                frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
+                dialogName="OkDialog", text=problemText, text_pos=(0, 0.07), command=self.cleanup_dialog, midPad=(-0.15),
+                frameColor=(0, 0, 0, 0), text_fg=(1, 1, 1, 1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
                 extraArgs=[function, args])
         elif form == 'yesNo':
             self.ProblemDialog = YesNoDialog(
-                dialogName="OkDialog", text=problemText, text_pos=(0,0.07), command=self.cleanup_dialog, midPad=(-0.15),
-                frameColor=(0,0,0,0), text_fg=(1,1,1,1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
+                dialogName="OkDialog", text=problemText, text_pos=(0, 0.07), command=self.cleanup_dialog, midPad=(-0.15),
+                frameColor=(0, 0, 0, 0), text_fg=(1, 1, 1, 1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
                 extraArgs=[function, args])
 
     def cleanup_dialog(self, value, function, args):
         self.ProblemDialog.cleanup()
         if value:
             function(*args)
-        
-
 
     # Functions to interact with the planet info view
-    #------------------------------------------------
+    # ------------------------------------------------
+
     def toggle_planet_info_mode(self, mode=False, obj=None):
-        
+
         if mode:
             self.MapViewPanel.hide()
             self.PlanetInfoModeOn = True
@@ -213,12 +224,12 @@ class World(DirectObject):
             camPos = camera.getPos()
             zoomInterval = Sequence(
                 Func(self.NewPlanetInfoView.reset, obj),
-                camera.posInterval(0.3, Point3(pos[0]-obj.scale * 1.25, pos[1]-obj.scale * 4, obj.scale * 4), camPos),
+                camera.posInterval(0.3, Point3(pos[0] - obj.scale * 1.25, pos[1] - obj.scale * 4, obj.scale * 4), camPos),
                 Func(self.NewPlanetInfoView.show)
             )
             zoomInterval.start()
             taskMgr.add(self.set_follow_cam_task, 'infocamTask', extraArgs=[obj, obj.scale, 'info'], appendTask=True)
-            
+
         else:
             self.PlanetInfoModeOn = False
             taskMgr.remove('infocamTask')
@@ -228,16 +239,15 @@ class World(DirectObject):
             taskMgr.remove('updatePlanetInfoTask')
             self.NewPlanetInfoView.hide()
 
-
     # Diverse collection of gameplay functions and tasks
-    #---------------------------------------------------
+    # ---------------------------------------------------
     def populate_planet_task(self, planet, task):
         habProblem = planet.habitation_cap <= planet.population
-        foodProblem = (not('Vegetable crates' in planet.goods) or 
-                      planet.goods['Vegetable crates'] < planet.population)
+        foodProblem = (not('Vegetable crates' in planet.goods)
+                       or planet.goods['Vegetable crates'] < planet.population)
 
         if foodProblem:
-            d = random.randint(-1,2)
+            d = random.randint(-1, 2)
             if planet.population - d <= 0:
                 planet.population = 0
             else:
@@ -246,7 +256,7 @@ class World(DirectObject):
             pass
             planet.goods['Vegetable crates'] -= round(planet.population * self.foodConsumingFactor)
         else:
-            planet.population+=random.randint(1,3)
+            planet.population += random.randint(1, 3)
             planet.goods['Vegetable crates'] -= round(planet.population * self.foodConsumingFactor)
         return task.again
 
@@ -263,7 +273,7 @@ class World(DirectObject):
         return task.again
 
     def add_message(self, planet, id, mType, text, value):
-        planet.messages.update({id: {'type':mType, 'text':text, 'value':value}})
+        planet.messages.update({id: {'type': mType, 'text': text, 'value': value}})
 
     def calc_distance_between_planets(self, planet1, planet2):
         pos1 = planet1.getPos()
@@ -273,10 +283,9 @@ class World(DirectObject):
         dist = math.sqrt(diffX**2 + diffY**2)
         return dist
 
-
-    #****************************************
-    #       Initialisation Functions        *
-    #****************************************
+    # ****************************************
+    #        Initialisation Functions        *
+    # ****************************************
 
     def load_planets(self):
         self.orbit_root_mercury = render.attachNewNode('orbit_root_mercury')
@@ -294,31 +303,30 @@ class World(DirectObject):
         self.sky.reparentTo(render)
         self.sky.setScale(100)
 
-        self.Sun = Star(self, 'Sun', 'models/planet_sphere', 
+        self.Sun = Star(self, 'Sun', 'models/planet_sphere',
                         'models/sun_1k_tex.jpg', 2)
 
         self.Mercury = Planet(self, 'Mercury', 'models/planet_sphere',
                               'models/mercury_1k_tex.jpg', self.orbit_root_mercury,
-                              0.385, 0.38, False, 1, {'Coal':'Common', 'Iron':'Common'})
-        
+                              0.385, 0.38, False, 1, {'Coal': 'Common', 'Iron': 'Common'})
+
         self.Venus = Planet(self, 'Venus', 'models/planet_sphere',
                             'models/venus_1k_tex.jpg', self.orbit_root_venus,
-                            0.923, 0.72, False, 2, {'Coal':'Common', 'Uranium':'Normal'})
+                            0.923, 0.72, False, 2, {'Coal': 'Common', 'Uranium': 'Normal'})
 
         self.Mars = Planet(self, 'Mars', 'models/planet_sphere',
-                            'models/mars_1k_tex.jpg', self.orbit_root_mars,
-                            0.512, 1.52, False, 1, {'Gemstone':'Rare', 'Iron':'Rare'})
+                           'models/mars_1k_tex.jpg', self.orbit_root_mars,
+                           0.512, 1.52, False, 1, {'Gemstone': 'Rare', 'Iron': 'Rare'})
 
         self.Earth = Planet(self, 'Earth', 'models/planet_sphere',
                             'models/earth_1k_tex.jpg', self.orbit_root_earth,
-                            1, 1, True, 1, {'Iron':'Normal', 'Coal':'Common'})
-        
+                            1, 1, True, 1, {'Iron': 'Normal', 'Coal': 'Common'})
 
         self.orbit_root_moon.setPos(self.orbitscale, 0, 0)
 
         self.Earth_Moon = Moon(self, 'Moon', 'models/planet_sphere',
-                            'models/moon_1k_tex.jpg', self.orbit_root_moon,
-                            0.1, 0.1, False, 0, {'Cheese':'Rare', 'Coal':'Common'})
+                               'models/moon_1k_tex.jpg', self.orbit_root_moon,
+                               0.1, 0.1, False, 0, {'Cheese': 'Rare', 'Coal': 'Common'})
 
     def rotate_planets(self):
         self.day_period_sun = self.Sun.model.hprInterval(20, (360, 0, 0))
@@ -334,8 +342,8 @@ class World(DirectObject):
             (243 * self.dayscale), (360, 0, 0))
 
         self.orbit_period_earth = Sequence(
-            self.orbit_root_earth.hprInterval(self.yearscale, (360, 0, 0))
-            , Func(self.incYear))
+            self.orbit_root_earth.hprInterval(self.yearscale, (360, 0, 0)),
+            Func(self.incYear))
         self.day_period_earth = Sequence(self.Earth.model.hprInterval(
             self.dayscale, (360, 0, 0)), Func(self.incDay))
 
@@ -361,115 +369,6 @@ class World(DirectObject):
         self.orbit_period_mars.loop()
         self.day_period_mars.loop()
 
-    def fill_BuildingsDB(self):
-        self.BuildingsDB = {
-            'RESC':{
-                'Organic Farm': {   'Price':250, 'Time':60, 'yield':'Vegetable crates', 'incVal':20, 'yieldText':'20 Vegetable crates per tick',
-                                    'req':'Athmosphere', 'decVal':0, 'reqText':'Athmosphere, 200 Energy', 'enrgDrain': 200, 
-                                    'desc':'Basic vegetable farm to satisfy nutrition needs.', 
-                                    'img':'models/organicfarm.jpg'},
-                
-                'Coal Drill': {     'Price':300, 'Time':60, 'yield':'Coal sacks', 'incVal':10, 'yieldText':'10 Coal sacks per tick', 
-                                    'req':'Coal', 'decVal':0, 'reqText':'Coal, 100 Energy', 'enrgDrain': 100, 
-                                    'desc':'Simple mining drill to extract coal rescources of a planet.', 
-                                    'img':'models/coaldrill.jpg'},
-
-                'Iron Mine': {      'Price':450, 'Time':100, 'yield':'Iron ingots', 'incVal':15, 'yieldText':'15 Iron ingots per tick',
-                                    'req':'Iron', 'decVal':0, 'reqText':'Iron, 150 Energy', 'enrgDrain': 150, 
-                                    'desc':'Sophisticated mine to faciliate iron, which is used for further Production.', 
-                                    'img':'models/ironmine.jpg'},
-
-                'Uranium Site': {   'Price':600, 'Time':300, 'yield':'Uranium containers', 'incVal':5, 'yieldText':'5 Uranium containters per tick',
-                                    'req':'Uranium', 'decVal':0, 'reqText':'Uranium, 500 Energy', 'enrgDrain': 500, 
-                                    'desc':'High tech facility to gather raw uranium. This has then to be enriched for further use.', 
-                                    'img':'models/uraniumsite.jpg'}
-            },
-            'PROD':{
-                'Weapon Forge': {   'Price':500, 'Time':120, 'yield':'Weapons', 'incVal':10, 'yieldText':'10 Weapons per tick',
-                                    'req':'Iron ingots', 'decVal':10, 'reqText':'10 Iron ingots per tick, 250 Energy', 'enrgDrain': 250, 
-                                    'desc':'Simple mining drill to extract coal rescources of a planet.', 
-                                    'img':'models/placeholder.jpg'},
-
-                'Ship Yard': {      'Price':550, 'Time':130, 'yield':'Ships', 'incVal':10, 'yieldText':'10 Ships per tick',
-                                    'req':'Iron ingots', 'decVal':30, 'reqText':'30 Iron ingots per tick, 250 Energy', 'enrgDrain': 300, 
-                                    'desc':'Simple mining drill to extract coal rescources of a planet.', 
-                                    'img':'models/placeholder.jpg'},
-
-                'Uranium Enricher':{'Price':750, 'Time':400, 'yield':'Uranium rods', 'incVal':10, 'yieldText':'10 Uranium rods per tick',
-                                    'req':'Uranium containers', 'decVal':5, 'reqText': '5 Uranium container per tick, 650 Energy', 'enrgDrain': 650, 
-                                    'desc':'Simple mining drill to extract coal rescources of a planet.', 
-                                    'img':'models/placeholder.jpg'}
-            },
-            'ENRG':{
-                'Wind Turbine': {   'Price':150, 'Time':30, 'yield':'Energy', 'incVal':150, 'yieldText':'150 Energy',
-                                    'req':'Wind', 'decVal':0, 'reqText':'Wind', 'enrgDrain': 0,
-                                    'desc':'First instance of energy supply. Needs at least level 1 Wind activities.', 
-                                    'img':'models/windgenerator.jpg'},
-
-                'Coal Generator': { 'Price':300, 'Time':50, 'yield':'Energy', 'incVal':500, 'yieldText':'500 Energy', 
-                                    'req':'Coal sacks', 'decVal':5, 'reqText':'5 Coal sacks per tick', 'enrgDrain': 0,
-                                    'desc':'Delivers bigger and more reliable energy output. Polution might be a Prolbem though.', 
-                                    'img':'models/coalplant.jpg'},
-
-                'M.W. Transmitter':{'Price':650, 'Time':250, 'yield':'Energy', 'incVal':1000, 'yieldText':'1000 Energy', 
-                                    'req':'Micro waves', 'decVal':0, 'reqText':'Micro wave connection to other planet', 'enrgDrain': 0,
-                                    'desc':'Enables multiple Planents to send energy supply to each other.', 
-                                    'img':'models/mw_transmitter.jpg'},
-
-                'Nuclear Reactor': {'Price':850, 'Time':350, 'yield':'Energy', 'incVal':5000, 'yieldText':'5000 Energy', 
-                                    'req':'Uranium rods', 'decVal':7, 'reqText':'7 Uranium rods per tick', 'enrgDrain': 0,
-                                    'desc':'Highest energy source that can be constructed planet site.', 
-                                    'img':'models/powerplant.jpg'},
-
-                'Dyson Sphere': {   'Price':3200, 'Time':600, 'yield':'Energy', 'incVal':50000, 'yieldText':'50000 Energy', 
-                                    'req':'Sun', 'decVal':0, 'reqText':'Sun as center of construction',
-                                    'desc':'Experimental construction, which others refer to as the newest wonder of the known worlds.',  'enrgDrain': 0,
-                                    'img':'models/dysonsphere.jpg'}
-            },
-            'DEV':{
-                'Trading Center': { 'Price':575, 'Time':300, 'yield':'Trading ability', 'incVal':0, 'yieldText':'Trading ability',
-                                    'req':None, 'decVal':0, 'reqText':'450 Energy', 'enrgDrain': 450,
-                                    'desc':'Allows to set trading routes and to trade with the open galaxy market. Only one needed per solar system.', 
-                                    'img':'models/placeholder.jpg'},
-                
-                'Milkyway Uni.': {  'Price':350, 'Time':200, 'yield':'Society improvements', 'incVal':0, 'yieldText':'Society improvements',
-                                    'req':None, 'decVal':0, 'reqText':'240 Energy', 'enrgDrain': 240,
-                                    'desc':'Simple mining drill to extract coal rescources of a planet.', 
-                                    'img':'models/placeholder.jpg'},
-                
-                'Science Institut':{'Price':500, 'Time':280, 'yield':'New researches', 'incVal':0, 'yieldText':'New researches',
-                                    'req':None, 'decVal':0, 'reqText':'310 Energy', 'enrgDrain': 310,
-                                    'desc':'Researches conducted by this institute allow enhancements of productivity and habitation standards.', 
-                                    'img':'models/placeholder.jpg'},
-                
-                'Space Port': {     'Price':190, 'Time':150, 'yield':'Space abilities', 'incVal':0, 'yieldText':'Space abilities',
-                                    'req':None, 'decVal':0, 'reqText':'560 Energy', 'enrgDrain': 560,
-                                    'desc':'Extends the interactions of a planet with its surrounding objects like asteroids or other celestial objects.', 
-                                    'img':'models/placeholder.jpg'}
-            },
-            'HAB':{
-                'Pod Settlement': { 'Price':120, 'Time':30, 'yield':'Nomads', 'incVal':100, 'yieldText': '100 Nomads',
-                                    'req':None, 'decVal':0, 'reqText':'120 Energy', 'enrgDrain': 120, 
-                                    'desc':'Simple mining drill to extract coal rescources of a planet.', 
-                                    'img':'models/placeholder.jpg'},
-                
-                'Skyscraper City': {'Price':400, 'Time':230, 'yield':'900 Nomads', 'incVal':900,  'yieldText': '900 Nomads',
-                                    'req':'Autom. Hospital', 'decVal':0, 'reqText':'Autom. Hospital, 290 Energy', 'enrgDrain': 290, 
-                                    'desc':'Simple mining drill to extract coal rescources of a planet.', 
-                                    'img':'models/placeholder.jpg'},
-                
-                'Sol Resort': {     'Price':625, 'Time':240, 'yield':'Tourism ability', 'incVal':0, 'yieldText': 'Tourism ability',
-                                    'req':'Skyscraper City', 'decVal':0, 'reqText':'Skyscraper City, 360 Energy', 'enrgDrain': 360, 
-                                    'desc':'Simple mining drill to extract coal rescources of a planet.', 
-                                    'img':'models/placeholder.jpg'},
-                
-                'Autom. Hospital': {'Price':350, 'Time':200, 'yield':'TBD', 'incVal':0, 'yieldText': 'TBD',
-                                    'req':None, 'decVal':0, 'reqText':'230 Energy', 'enrgDrain': 230, 
-                                    'desc':'Simple mining drill to extract coal rescources of a planet.', 
-                                    'img':'models/placeholder.jpg'}
-            }
-        }
-
     def set_capital_planet(self):
         self.capitalPlanet = self.Earth
         self.Earth.probed = True
@@ -478,18 +377,19 @@ class World(DirectObject):
 
     def create_gui(self):
         self.buttonModel = loader.loadModel('models/gui/buttons/simple_button_maps.egg')
-        self.buttonMaps = (self.buttonModel.find('**/normal'),self.buttonModel.find('**/active'),
-                           self.buttonModel.find('**/normal'),self.buttonModel.find('**/disabled'))
+        self.buttonMaps = (self.buttonModel.find('**/normal'), self.buttonModel.find('**/active'),
+                           self.buttonModel.find('**/normal'), self.buttonModel.find('**/disabled'))
 
         self.infoDialogPanelMap = loader.loadModel('models/gui/panels/infodialogpanel_maps.egg').find('**/infodialogpanel')
-        
+
         self.HeadGUIPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0.9), frameSize=(0, 1.55, -0.13, 0), pos=(-1.8, 0, 1))
-    
-        self.HeadGUIText = DirectLabel(text=('Year '+str(self.yearCounter)+', '
-                                                'Day '+str(self.dayCounter) + ', '
-                                                'Money: ' +str(self.money) + ', '
-                                                'Population: ' +str(self.system_population)), 
-            pos=(0.1, 0, -0.085), text_fg=(1, 1, 1, 1), frameColor=(0,0,0,0),
+
+        self.HeadGUIText = DirectLabel(
+            text=('Year ' + str(self.yearCounter) + ', '
+                  'Day ' + str(self.dayCounter) + ', '
+                  'Money: ' + str(self.money) + ', '
+                  'Population: ' + str(self.system_population)),
+            pos=(0.1, 0, -0.085), text_fg=(1, 1, 1, 1), frameColor=(0, 0, 0, 0),
             parent=self.HeadGUIPanel, text_align=TextNode.ALeft, text_scale=.07)
 
         self.MapViewPanel = DirectFrame(
@@ -497,15 +397,12 @@ class World(DirectObject):
             frameSize=(0, 0.5, -1.2, 0),
             pos=(-1.75, 0, 0.6))
 
-        
-
-
-    #****************************************
-    #             Debug Functions           *
-    #****************************************
-
+    # ****************************************
+    #              Debug Functions           *
+    # ****************************************
 
 # end class world
+
 
 if __name__ == '__main__':
     w = World()
