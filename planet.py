@@ -1,9 +1,9 @@
-
+from panda3d.core import *
 
 
 class Planet():
-    def __init__(self, world, name, model_path, texture, orbit_root, 
-             scale, distance, athmosphere, wind, rescources):
+    def __init__(self, world, name, model_path, texture, orbit_root,
+                 scale, distance, athmosphere, wind, rescources):
 
         self.world = world
         self.name = name
@@ -22,12 +22,12 @@ class Planet():
         self.goods = {}
         self.messages = {}
         self.slots = {
-                'RESC':{'1':None, '2':None, '3':None, '4':None, '5':None},
-                'PROD':{'1':None, '2':None, '3':None, '4':None, '5':None},
-                'ENRG':{'1':None, '2':None, '3':None, '4':None, '5':None},
-                'DEV': {'1':None, '2':None, '3':None, '4':None, '5':None},
-                'HAB': {'1':None, '2':None, '3':None, '4':None, '5':None}
-            }
+            'RES': {'1': None, '2': None, '3': None, '4': None, '5': None},
+            'PRO': {'1': None, '2': None, '3': None, '4': None, '5': None},
+            'ENR': {'1': None, '2': None, '3': None, '4': None, '5': None},
+            'DEV': {'1': None, '2': None, '3': None, '4': None, '5': None},
+            'HAB': {'1': None, '2': None, '3': None, '4': None, '5': None}
+        }
 
         self.model = loader.loadModel(model_path)
         self.model.setTexture(loader.loadTexture(texture), 1)

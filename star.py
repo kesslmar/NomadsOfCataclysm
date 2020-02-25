@@ -1,10 +1,10 @@
-
+from panda3d.core import *
 
 
 class Star():
 
     def __init__(self, world, name, model_path, texture, scale):
-             
+
         self.world = world
         self.name = name
         self.scale = scale

@@ -53,23 +53,23 @@ class PlanetInfoView():
                 for k, v in self.obj.rescources.items():
                     PlanetInfoRescourceText += k + ':\t\t' + str(v) + '\n'
 
-                self.PlanetInfoRescourceTable['text'] = PlanetInfoRescourceText
+                self.planet_info_rescource_table['text'] = PlanetInfoRescourceText
 
                 if self.obj.goods:
-                    PlanetInfoGoodsText = 'Goods:\n'
+                    planet_info_goods_text = 'Goods:\n'
                     for k, v in self.obj.goods.items():
-                        PlanetInfoGoodsText += k + ':\t' + str(v) + '\n'
+                        planet_info_goods_text += k + ':\t' + str(v) + '\n'
 
-                    self.PlanetInfoGoodsTable['text'] = PlanetInfoGoodsText
+                    self.planet_info_goods_table['text'] = planet_info_goods_text
 
-                self.PlanetInfoENRGTable['text'] = (
+                self.planet_info_ENR_table['text'] = (
                     'Energy capacity:\t' + str(self.obj.energy_cap) + '\n'
                     'Energy usage:\t' + str(self.obj.energy_usg) + '\n\n'
 
                     'Habitation capacity:\t' + str(self.obj.habitation_cap) + '\n'
                     'Population count:\t' + str(self.obj.population) + '\n\n'
 
-                    'Per Capita GDP:\t' + str(self.world.taxFactor)
+                    'Per Capita GDP:\t' + str(self.world.tax_factor)
                 )
         else:
             self.PlanetInfoAttributesTable['text'] = '???'
@@ -84,9 +84,9 @@ class PlanetInfoView():
     def clear(self):
         self.PlanetInfoTitle['text'] = 'Unknown'
         self.PlanetInfoAttributesTable['text'] = ''
-        self.PlanetInfoRescourceTable['text'] = ''
-        self.PlanetInfoGoodsTable['text'] = ''
-        self.PlanetInfoENRGTable['text'] = ''
+        self.planet_info_rescource_table['text'] = ''
+        self.planet_info_goods_table['text'] = ''
+        self.planet_info_ENR_table['text'] = ''
 
         self.empty_messages()
 
@@ -123,8 +123,9 @@ class PlanetInfoView():
                 mText = message['text'] + '\n' + str(message['value'])
 
                 msgPanel = DirectFrame(
-                    pos=(0, 0, 0.35 - i * 0.21), frameColor=(0.2, 0.2, 0.3, 0.2), frameSize=(-0.2, 0.2, -0.1, 0.1), text_pos=(0, 0.05),
-                    parent=self.PlanetInfoMessagePanel, text=mText, text_scale=0.05, text_fg=(1, 1, 1, 1), text_wordwrap=8)
+                    pos=(0, 0, 0.35 - i * 0.21), frameColor=(0.2, 0.2, 0.3, 0.2), frameSize=(-0.2, 0.2, -0.1, 0.1),
+                    text=mText, text_pos=(0, 0.05), text_scale=0.05, text_fg=(1, 1, 1, 1), text_wordwrap=8,
+                    parent=self.PlanetInfoMessagePanel)
 
                 self.messagesDict.update({id: msgPanel})
                 i += 1
@@ -170,7 +171,7 @@ class PlanetInfoView():
         time = round(dist * 4)
         cost = 3900 + round(dist * 123)
         missionText = "Colonise misson to {}:\nDistance: {}\nDuration: {}\nCosts: {}".format(name, dist, time, cost)
-        self.world.create_dialog(missionText, 'yesNo', self.start_colonise_mission, [planet1, planet2, name, dist, time, cost])
+        self.world.create_dialog(missionText, 'yesNo', self.start_colonise_mission, [planet2, name, dist, time, cost])
 
     def start_colonise_mission(self, planet, name, dist, time, cost):
         if self.world.money >= cost:
@@ -205,9 +206,9 @@ class PlanetInfoView():
             self.hide()
             self.clear()
             taskMgr.remove('infocamTask')
+            self.NewPlanetBuildView.reset(obj)
 
             zoomInterval = Sequence(
-                Func(self.NewPlanetBuildView.reset, obj),
                 camera.posHprInterval(0.3, Point3(pos[0] - scale * 0.9, pos[1] - scale * 3.4, 0), Vec3(0, 0, 0), camPos),
                 Func(self.NewPlanetBuildView.show))
             zoomInterval.start()
@@ -220,9 +221,9 @@ class PlanetInfoView():
             self.NewPlanetBuildView.clear()
             taskMgr.remove('quickinfoTask')
             taskMgr.remove('buildcamTask')
+            self.reset(obj)
 
             zoomInterval = Sequence(
-                Func(self.reset, obj),
                 camera.posHprInterval(0.3, Point3(pos[0] - scale * 1.25, pos[1] - scale * 4, scale * 4), Vec3(0, -45, 0), camPos),
                 Func(self.show))
             zoomInterval.start()
@@ -240,47 +241,54 @@ class PlanetInfoView():
             geom=self.infoPanelMap, geom_scale=(0.65, 0, 0.65), geom_pos=(0.1, 0, 0), enableEdit=1)
         self.PlanetInfoPanel.hide()
 
-        self.PlanetInfoTitle = DirectLabel(text='', pos=(0.1, 0, 0.5),
-            text_fg=(1, 1, 1, 1), frameColor=(0, 0, 0, 0), parent=self.PlanetInfoPanel,
-            text_align=TextNode.ACenter, text_scale=0.12)
+        self.PlanetInfoTitle = DirectLabel(
+            text='', pos=(0.1, 0, 0.5), frameColor=(0, 0, 0, 0),
+            text_fg=(1, 1, 1, 1), text_align=TextNode.ACenter, text_scale=0.12,
+            parent=self.PlanetInfoPanel,)
 
-        self.PlanetInfoAttributesTable = DirectLabel(text='', pos=(-0.85, 0, 0.35),
-            text_fg=(1, 1, 1, 1), frameColor=(0, 0, 0, 0), parent=self.PlanetInfoPanel,
-            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
+        self.PlanetInfoAttributesTable = DirectLabel(
+            text='', pos=(-0.85, 0, 0.35), frameColor=(0, 0, 0, 0), scale=0.13,
+            text_fg=(1, 1, 1, 1), text_align=TextNode.ALeft, text_scale=0.5,
+            parent=self.PlanetInfoPanel)
 
-        self.PlanetInfoRescourceTable = DirectLabel(text='', pos=(-0.85, 0, -0.05),
-            text_fg=(1, 1, 1, 1), frameColor=(0, 0, 0, 0), parent=self.PlanetInfoPanel,
-            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
+        self.planet_info_rescource_table = DirectLabel(
+            text='', pos=(-0.85, 0, -0.05), frameColor=(0, 0, 0, 0), scale=0.13,
+            text_fg=(1, 1, 1, 1), text_align=TextNode.ALeft, text_scale=0.5,
+            parent=self.PlanetInfoPanel)
 
-        self.PlanetInfoGoodsTable = DirectLabel(text='', pos=(-0.85, 0, -0.4),
-            text_fg=(1, 1, 1, 1), frameColor=(0, 0, 0, 0), parent=self.PlanetInfoPanel,
-            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
+        self.planet_info_goods_table = DirectLabel(
+            text='', pos=(-0.85, 0, -0.4), frameColor=(0, 0, 0, 0), scale=0.13,
+            text_fg=(1, 1, 1, 1), text_align=TextNode.ALeft, text_scale=0.5,
+            parent=self.PlanetInfoPanel)
 
-        self.PlanetInfoENRGTable = DirectLabel(text='', pos=(0.28, 0, 0.35),
-            text_fg=(1, 1, 1, 1), frameColor=(0, 0, 0, 0), parent=self.PlanetInfoPanel,
-            text_align=TextNode.ALeft, scale=0.13, text_scale=0.5)
+        self.planet_info_ENR_table = DirectLabel(
+            text='', pos=(0.28, 0, 0.35), frameColor=(0, 0, 0, 0),
+            text_fg=(1, 1, 1, 1), text_align=TextNode.ALeft, scale=0.13, text_scale=0.5,
+            parent=self.PlanetInfoPanel)
 
-        self.PlanetInfoCloseButton = DirectButton(text='Close',
-            pos=(-0.68, 0, -0.85), scale=0.5, pad=(-0.1, -0.09), frameColor=(0, 0, 0, 0),
-            text_scale=0.15, text_pos=(0, -0.03), text_fg=(1, 1, 1, 1), geom_scale=(0.7, 0, 1),
-            command=self.world.toggle_planet_info_mode, extraArgs=[False], parent=self.PlanetInfoPanel,
-            geom=(self.world.buttonMaps))
+        self.PlanetInfoCloseButton = DirectButton(
+            text='Close', pos=(-0.68, 0, -0.85), scale=0.5, pad=(-0.1, -0.09), frameColor=(0, 0, 0, 0),
+            geom=(self.world.buttonMaps), geom_scale=(0.7, 0, 1),
+            text_scale=0.15, text_pos=(0, -0.03), text_fg=(1, 1, 1, 1),
+            command=self.world.toggle_planet_info_mode, extraArgs=[False], parent=self.PlanetInfoPanel)
 
-        self.PlanetInfoProbeButton = DirectButton(text='Probe',
-            pos=(1.45, 0, 0.55), pad=(0.055, 0.02), borderWidth=(0.01, 0.01),
+        self.PlanetInfoProbeButton = DirectButton(
+            text='Probe', pos=(1.45, 0, 0.55), pad=(0.055, 0.02), borderWidth=(0.01, 0.01),
             text_scale=0.07, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
             command=self.show_probe_mission, parent=self.PlanetInfoPanel)
 
-        self.PlanetInfoColoniseButton = DirectButton(text='Colonise',
-            pos=(1.85, 0, 0.55), pad=(0.03, 0.02), borderWidth=(0.01, 0.01),
+        self.PlanetInfoColoniseButton = DirectButton(
+            text='Colonise', pos=(1.85, 0, 0.55), pad=(0.03, 0.02), borderWidth=(0.01, 0.01),
             text_scale=0.07, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
             command=self.show_colonise_mission, parent=self.PlanetInfoPanel)
 
-        self.PlanetInfoBuildButton = DirectButton(text='Build',
-            pos=(1.65, 0, -0.58), scale=0.5, pad=(-0.1, -0.09), frameColor=(0, 0, 0, 0),
-            text_scale=0.15, text_pos=(0, -0.03), text_fg=(1, 1, 1, 1), geom_scale=(0.5, 0, 1.2), geom=(self.world.buttonMaps),
+        self.PlanetInfoBuildButton = DirectButton(
+            text='Build', pos=(1.65, 0, -0.58), scale=0.5, pad=(-0.1, -0.09), frameColor=(0, 0, 0, 0),
+            text_scale=0.15, text_pos=(0, -0.03), text_fg=(1, 1, 1, 1),
+            geom_scale=(0.5, 0, 1.2), geom=(self.world.buttonMaps),
             command=self.toggle_planet_build_mode, extraArgs=[True], parent=self.PlanetInfoPanel)
 
-        self.PlanetInfoMessagePanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0),
-            frameSize=(0, 0, 0, 0), pos=(2.33, 0, 0.16), parent=self.PlanetInfoPanel,
-            geom=self.problemPanelMap, geom_scale=(0.7, 0, 0.7), geom_pos=(0, 0, 0), enableEdit=1)
+        self.PlanetInfoMessagePanel = DirectFrame(
+            pos=(2.33, 0, 0.16), frameColor=(0.2, 0.2, 0.22, 0), frameSize=(0, 0, 0, 0),
+            geom=self.problemPanelMap, geom_scale=(0.7, 0, 0.7), geom_pos=(0, 0, 0),
+            parent=self.PlanetInfoPanel)

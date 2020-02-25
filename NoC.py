@@ -58,10 +58,10 @@ class World(DirectObject):
 
         # Global game balance variables
         self.population_time_delta = 3
-        self.taxFactor = 0.1
-        self.salvageFactor = 0.75
-        self.foodConsumingFactor = 0.75
-        self.goodsCap = 1000
+        self.tax_factor = 0.1
+        self.salvage_factor = 0.75
+        self.food_consuming_factor = 0.75
+        self.goods_cap = 1000
 
         self.PlanetInfoModeOn = False
         self.capitalPlanet = None
@@ -119,23 +119,8 @@ class World(DirectObject):
         self.accept("wheel_up", self.handle_zoom, ['in'])
         self.accept("wheel_down", self.handle_zoom, ['out'])
 
-    # end of init function
-
-    # Smaller functions
-    def pressKey(self, key):
-        self.keyDict[key] = True
-
-    def releaseKey(self, key):
-        self.keyDict[key] = False
-
-    def incYear(self):
-        self.yearCounter += 1
-
-    def incDay(self):
-        self.dayCounter += 1
-
     # ****************************************
-    #       MAIN GAIMPLAY FUNCTIONS         *
+    #         Main Gameplay Functions        *
     # ****************************************
 
     # Camera, controle and main GUI functions
@@ -194,6 +179,94 @@ class World(DirectObject):
                                     'Population: ' + str(self.system_population))
         return task.cont
 
+    # Smaller single line functions
+    # -----------------------------
+
+    def pressKey(self, key):
+        self.keyDict[key] = True
+
+    def releaseKey(self, key):
+        self.keyDict[key] = False
+
+    def incYear(self):
+        self.yearCounter += 1
+
+    def incDay(self):
+        self.dayCounter += 1
+
+    # Functions to interact with the planet info view
+    # ------------------------------------------------
+
+    def toggle_planet_info_mode(self, mode=False, obj=None):
+
+        if mode:
+            self.MapViewPanel.hide()
+            self.PlanetInfoModeOn = True
+
+            pos = obj.getPos()
+            camPos = camera.getPos()
+            self.NewPlanetInfoView.reset(obj)
+            zoomInterval = Sequence(
+                camera.posInterval(0.3, Point3(pos[0] - obj.scale * 1.25, pos[1] - obj.scale * 4, obj.scale * 4), camPos),
+                Func(self.NewPlanetInfoView.show)
+            )
+            zoomInterval.start()
+            taskMgr.add(self.set_follow_cam_task, 'infocamTask', extraArgs=[obj, obj.scale, 'info'], appendTask=True)
+
+        else:
+            self.PlanetInfoModeOn = False
+            taskMgr.remove('infocamTask')
+            camPos = camera.getPos()
+            zoomInterval = Sequence(camera.posInterval(0.3, Point3(0, -30, 30), camPos), Func(self.MapViewPanel.show))
+            zoomInterval.start()
+            taskMgr.remove('updatePlanetInfoTask')
+            self.NewPlanetInfoView.hide()
+
+    # Global general purpose functions and tasks
+    # ---------------------------------------------------
+
+    def populate_planet_task(self, planet, task):
+        habProblem = planet.habitation_cap <= planet.population
+        foodProblem = (not('Vegetable crates' in planet.goods)
+                       or planet.goods['Vegetable crates'] < planet.population)
+
+        if foodProblem:
+            d = random.randint(-1, 2)
+            if planet.population - d <= 0:
+                planet.population = 0
+            else:
+                planet.population -= d
+        elif habProblem:
+            pass
+            planet.goods['Vegetable crates'] -= round(planet.population * self.food_consuming_factor)
+        else:
+            planet.population += random.randint(1, 3)
+            planet.goods['Vegetable crates'] -= round(planet.population * self.food_consuming_factor)
+        return task.again
+
+    def count_system_population(self):
+        wholePop = 0
+        for obj in self.galaxy_objects:
+            if type(obj) != Star:
+                wholePop += obj.population
+        self.system_population = wholePop
+
+    def generate_money_task(self, task):
+        self.count_system_population()
+        self.money += round(self.system_population * self.tax_factor)
+        return task.again
+
+    def add_message(self, planet, id, mType, text, value):
+        planet.messages.update({id: {'type': mType, 'text': text, 'value': value}})
+
+    def calc_distance_between_planets(self, planet1, planet2):
+        pos1 = planet1.getPos()
+        pos2 = planet2.getPos()
+        diffX = abs(pos1[0] - pos2[0])
+        diffY = abs(pos1[1] - pos2[1])
+        dist = math.sqrt(diffX**2 + diffY**2)
+        return dist
+
     def create_dialog(self, problemText, form='ok', function=lambda: None, args=[]):
         if form == 'ok':
             self.ProblemDialog = OkDialog(
@@ -210,78 +283,6 @@ class World(DirectObject):
         self.ProblemDialog.cleanup()
         if value:
             function(*args)
-
-    # Functions to interact with the planet info view
-    # ------------------------------------------------
-
-    def toggle_planet_info_mode(self, mode=False, obj=None):
-
-        if mode:
-            self.MapViewPanel.hide()
-            self.PlanetInfoModeOn = True
-
-            pos = obj.getPos()
-            camPos = camera.getPos()
-            zoomInterval = Sequence(
-                Func(self.NewPlanetInfoView.reset, obj),
-                camera.posInterval(0.3, Point3(pos[0] - obj.scale * 1.25, pos[1] - obj.scale * 4, obj.scale * 4), camPos),
-                Func(self.NewPlanetInfoView.show)
-            )
-            zoomInterval.start()
-            taskMgr.add(self.set_follow_cam_task, 'infocamTask', extraArgs=[obj, obj.scale, 'info'], appendTask=True)
-
-        else:
-            self.PlanetInfoModeOn = False
-            taskMgr.remove('infocamTask')
-            camPos = camera.getPos()
-            zoomInterval = Sequence(camera.posInterval(0.3, Point3(0, -30, 30), camPos), Func(self.MapViewPanel.show))
-            zoomInterval.start()
-            taskMgr.remove('updatePlanetInfoTask')
-            self.NewPlanetInfoView.hide()
-
-    # Diverse collection of gameplay functions and tasks
-    # ---------------------------------------------------
-    def populate_planet_task(self, planet, task):
-        habProblem = planet.habitation_cap <= planet.population
-        foodProblem = (not('Vegetable crates' in planet.goods)
-                       or planet.goods['Vegetable crates'] < planet.population)
-
-        if foodProblem:
-            d = random.randint(-1, 2)
-            if planet.population - d <= 0:
-                planet.population = 0
-            else:
-                planet.population -= d
-        elif habProblem:
-            pass
-            planet.goods['Vegetable crates'] -= round(planet.population * self.foodConsumingFactor)
-        else:
-            planet.population += random.randint(1, 3)
-            planet.goods['Vegetable crates'] -= round(planet.population * self.foodConsumingFactor)
-        return task.again
-
-    def count_system_population(self):
-        wholePop = 0
-        for obj in self.galaxy_objects:
-            if type(obj) != Star:
-                wholePop += obj.population
-        self.system_population = wholePop
-
-    def generate_money_task(self, task):
-        self.count_system_population()
-        self.money += round(self.system_population * self.taxFactor)
-        return task.again
-
-    def add_message(self, planet, id, mType, text, value):
-        planet.messages.update({id: {'type': mType, 'text': text, 'value': value}})
-
-    def calc_distance_between_planets(self, planet1, planet2):
-        pos1 = planet1.getPos()
-        pos2 = planet2.getPos()
-        diffX = abs(pos1[0] - pos2[0])
-        diffY = abs(pos1[1] - pos2[1])
-        dist = math.sqrt(diffX**2 + diffY**2)
-        return dist
 
     # ****************************************
     #        Initialisation Functions        *
@@ -398,8 +399,11 @@ class World(DirectObject):
             pos=(-1.75, 0, 0.6))
 
     # ****************************************
-    #              Debug Functions           *
+    #        Debug / Testing Functions       *
     # ****************************************
+
+    def reset_game(self):
+        pass
 
 # end class world
 
