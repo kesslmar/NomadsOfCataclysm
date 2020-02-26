@@ -124,7 +124,7 @@ class PlanetBuildView():
 
         if construction_possible:
             self.PlanetBuildConstructButton['state'] = 'normal'
-            self.PlanetBuildConstructButton['text_fg'] = (1, 1, 1, 1)
+            self.PlanetBuildConstructButton['text_fg'] = (0.9, 1, 0.9, 1)
         else:
             self.PlanetBuildConstructButton['state'] = 'disabled'
             self.PlanetBuildConstructButton['text_fg'] = (0.5, 0.5, 0.5, 1)
@@ -135,7 +135,7 @@ class PlanetBuildView():
 
         if self.ActiveBuildSlot[0] is not None and self.obj.slots[section][self.ActiveBuildSlot[0]] is not None:
             self.PlanetBuildSalvageButton['state'] = 'normal'
-            self.PlanetBuildSalvageButton['text_fg'] = (1, 1, 1, 1)
+            self.PlanetBuildSalvageButton['text_fg'] = (1, 0.9, 0.9, 1)
             self.PlanetBuildSlotInfo.show()
             self.fill_slot_info(planet, section, self.ActiveBuildSlot[0])
         else:
@@ -397,6 +397,14 @@ class PlanetBuildView():
             'models/gui/panels/blueprintlist_maps.egg').find('**/blueprintlist')
         self.build_description_map = loader.loadModel(
             'models/gui/panels/blueprintdescription_maps.egg').find('**/blueprintdescription')
+        
+        build_button_model = loader.loadModel('models/gui/buttons/build/build_buttons.egg')
+        self.build_button_maps = (build_button_model.find('**/normal'), build_button_model.find('**/active'),
+                     build_button_model.find('**/normal'), build_button_model.find('**/disabled'))
+
+        salvage_button_model = loader.loadModel('models/gui/buttons/salvage/salvage_buttons.egg')
+        self.salvage_button_maps = (salvage_button_model.find('**/normal'), salvage_button_model.find('**/active'),
+                     salvage_button_model.find('**/normal'), salvage_button_model.find('**/disabled'))
 
         self.PlanetBuildPanel = DirectFrame(
             frameColor=(0.15, 0.15, 0.15, 0), frameSize=(-0.4, 1.23, 0.66, -0.65), pos=(-1.35, 0, 0),
@@ -416,13 +424,15 @@ class PlanetBuildView():
             parent=self.PlanetBuildDescriptionField)
 
         self.PlanetBuildConstructButton = DirectButton(
-            text='Construct ->', pos=(-0.095, 0, -0.48), pad=(0.05, 0.02), borderWidth=(0.01, 0.01),
-            text_scale=0.08, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
+            text='Construct', pos=(-0.04, 0, -0.5), pad=(0, 0), borderWidth=(0, 0),
+            text_scale=0.08, frameColor=(0, 0, 0, 0), text_fg=(0.9, 1, 0.9, 1),
+            geom=(self.build_button_maps), geom_scale=(0.5, 0, 0.5), geom_pos=(0, 0, 0.02),
             command=self.construct_building, parent=self.PlanetBuildDescriptionField, state='disabled')
 
         self.PlanetBuildSalvageButton = DirectButton(
-            text='<- Salvage', pos=(-0.099, 0, -0.62), pad=(0.085, 0.013), borderWidth=(0.01, 0.01),
-            text_scale=0.08, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
+            text='Salvage', pos=(-0.04, 0, -0.68), pad=(0, 0), borderWidth=(0, 0),
+            text_scale=0.08, frameColor=(0, 0, 0, 0), text_fg=(1, 0.9, 0.9, 1),
+            geom=(self.salvage_button_maps), geom_scale=(0.5, 0, 0.5), geom_pos=(0, 0, 0.02),
             command=self.salvage_building, parent=self.PlanetBuildDescriptionField, state='disabled')
 
         self.PlanetBuildCloseButton = DirectButton(
