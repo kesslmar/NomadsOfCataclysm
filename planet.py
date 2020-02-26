@@ -41,3 +41,20 @@ class Planet():
 
     def getPos(self):
         return self.model.getPos(base.render)
+
+    def reset(self):
+        self.energy_cap = 0
+        self.energy_usg = 0
+        self.population = 0
+        self.habitation_cap = 0
+        self.probed = False
+        self.colonised = False
+        self.goods = {}
+        self.messages = {}
+        self.slots = {
+            'RES': {'1': None, '2': None, '3': None, '4': None, '5': None},
+            'PRO': {'1': None, '2': None, '3': None, '4': None, '5': None},
+            'ENR': {'1': None, '2': None, '3': None, '4': None, '5': None},
+            'DEV': {'1': None, '2': None, '3': None, '4': None, '5': None},
+            'HAB': {'1': None, '2': None, '3': None, '4': None, '5': None}
+        }

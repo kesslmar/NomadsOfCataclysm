@@ -20,6 +20,28 @@ class TestNoC(unittest.TestCase):
         self.w.toggle_planet_info_mode(True, self.w.Earth)
         self.assertEqual(self.w.NewPlanetInfoView.PlanetInfoTitle['text'], 'Earth')
 
+    def test_build_windturbine(self):
+        """ Simulate build process of a wind turbine on earth"""
+        self.w.toggle_planet_info_mode(True, self.w.Earth)
+        self.w.NewPlanetInfoView.toggle_planet_build_mode(True)
+        
+        self.w.NewPlanetBuildView.switch_build_section(
+            'ENR', self.w.NewPlanetBuildView.PlanetBuildENRButton)
+        
+        self.w.NewPlanetBuildView.switch_build_blueprint(
+            self.w.NewPlanetBuildView.PlanetBuildPanelContent[0],
+            self.w.NewPlanetBuildView.PlanetBuildPanelContent[0]['extraArgs'][1])
+        
+        self.w.NewPlanetBuildView.ActiveBuildSlot = '1'
+        self.w.NewPlanetBuildView.switch_build_slot()
+
+        self.w.NewPlanetBuildView.construct_building()
+
+        self.assertEqual(
+            self.w.NewPlanetBuildView.PlanetBuildSlotLabels[0]['text'],
+            'Wind Turbine')
+
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

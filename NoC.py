@@ -403,7 +403,24 @@ class World(DirectObject):
     # ****************************************
 
     def reset_game(self):
-        pass
+        self.NewPlanetInfoView.hide()
+        self.NewPlanetBuildView.hide()
+        self.PlanetInfoModeOn = False
+
+        taskMgr.remove('quickinfoTask')
+        taskMgr.remove('buildcamTask')
+        taskMgr.remove('infocamTask')
+
+        self.yearCounter = 0
+        self.dayCounter = 0
+        self.money = 2000
+        self.system_population = 0
+
+        for planet in self.galaxy_objects:
+            planet.reset()
+
+        self.set_capital_planet()
+        
 
 # end class world
 
