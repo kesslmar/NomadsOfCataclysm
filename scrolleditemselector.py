@@ -89,9 +89,15 @@ class ScrolledItemSelector(DirectObject):
             self.command()
 
     def _start_scroll(self):
-        taskMgr.doMethodLater(0.01, self._scroll_task, 'scroll_task')
-        self.start_mY= base.mouseWatcherNode.getMouse().getY()
-        self.old_mY = base.mouseWatcherNode.getMouse().getY()
+        n = len(self.item_list)
+        content_length = (
+            (n*(self.i_y + self.item_v_padding)) +  # Size of all elements with padding
+            self.item_v_padding)                   # Add one padding for the bottom
+
+        if content_length > self.c_y:
+            taskMgr.doMethodLater(0.01, self._scroll_task, 'scroll_task')
+            self.start_mY = base.mouseWatcherNode.getMouse().getY()
+            self.old_mY = self.start_mY
 
     def _stop_scroll(self):
         taskMgr.remove('scroll_task')
@@ -111,13 +117,20 @@ class ScrolledItemSelector(DirectObject):
         self.c_scroll_stop = (
             (n*(self.i_y + self.item_v_padding)) +  # Size of all elements with padding
             self.item_v_padding -                   # Add one padding for the bottom
-            self.c_y)                               # Substract the length of the canvas
+            self.f_y)                               # Substract the length of the canvas
+        self.c_new_pos = (old_c - self.m_diff)
 
-        hits_not_upper_bound = (old_c - self.m_diff) >= self.c_scroll_start
-        hits_not_lower_bound = (old_c - self.m_diff) <= self.c_scroll_stop
+        hits_not_upper_bound = self.c_new_pos >= self.c_scroll_start
+        hits_not_lower_bound = self.c_new_pos <= self.c_scroll_stop
+
+        print('canvas : ' + str(self.canvas.getZ()))
 
         if hits_not_upper_bound and hits_not_lower_bound:
-            self.canvas.setZ(old_c - self.m_diff)
+            self.canvas.setZ(self.c_new_pos)
+        elif not hits_not_upper_bound:
+            self.canvas.setZ(self.c_scroll_start)
+        elif not hits_not_lower_bound:
+            self.canvas.setZ(self.c_scroll_stop)
 
         self.old_mY = mY
         return task.again
@@ -142,9 +155,17 @@ class ScrolledItemSelector(DirectObject):
             self.canvas.setZ(old_c - self.m_diff)
             self.m_diff *= 0.85
             return task.again
-        else:
+        elif not hits_not_upper_bound:
+            self.canvas.setZ(self.c_scroll_start)
             self.m_diff = 0
             return task.done
+        elif not hits_not_lower_bound:
+            self.canvas.setZ(self.c_scroll_stop)
+            self.m_diff = 0
+            return task.done
+
+    def rubberband_task(self, task):
+        pass
 
     def add_item(self,
                  image=None,
