@@ -114,8 +114,8 @@ class ScrolledItemSelector(DirectObject):
         self.c_scroll_start = 0
         self.c_scroll_stop = (
             (n * (self.i_y + self.item_v_padding)) +  # Size of all elements with padding
-            self.item_v_padding -                   # Add one padding for the bottom
-            self.f_y)                               # Substract the length of the canvas
+            self.item_v_padding -                     # Add one padding for the bottom
+            self.f_y)                                 # Substract the length of the canvas
         self.c_new_pos = (old_c - self.m_diff)
 
         hits_not_upper_bound = self.c_new_pos >= self.c_scroll_start
@@ -161,9 +161,6 @@ class ScrolledItemSelector(DirectObject):
             self.canvas.setZ(self.c_scroll_stop)
             self.m_diff = 0
             return task.done
-
-    def rubberband_task(self, task):
-        pass
 
     def add_item(self,
                  image=None,

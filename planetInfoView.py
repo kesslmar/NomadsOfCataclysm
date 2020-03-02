@@ -118,17 +118,21 @@ class PlanetInfoView():
 
     def load_messages(self):
         if type(self.obj) != Star:
-            i = 0
-            for id, message in self.obj.messages.items():
-                mText = message['text'] + '\n' + str(message['value'])
+            if len(self.obj.messages) > 0:
+                self.message_panel_bg_text.hide()
+                i = 0
+                for id, message in self.obj.messages.items():
+                    mText = message['text'] + '\n' + str(message['value'])
 
-                msgPanel = DirectFrame(
-                    pos=(0, 0, 0.35 - i * 0.21), frameColor=(0.2, 0.2, 0.3, 0.2), frameSize=(-0.2, 0.2, -0.1, 0.1),
-                    text=mText, text_pos=(0, 0.05), text_scale=0.05, text_fg=(1, 1, 1, 1), text_wordwrap=8,
-                    parent=self.PlanetInfoMessagePanel)
+                    msgPanel = DirectFrame(
+                        pos=(0, 0, 0.35 - i * 0.21), frameColor=(0.2, 0.2, 0.3, 0.2), frameSize=(-0.2, 0.2, -0.1, 0.1),
+                        text=mText, text_pos=(0, 0.05), text_scale=0.05, text_fg=(1, 1, 1, 1), text_wordwrap=8,
+                        parent=self.PlanetInfoMessagePanel)
 
-                self.messagesDict.update({id: msgPanel})
-                i += 1
+                    self.messagesDict.update({id: msgPanel})
+                    i += 1
+            else:
+                self.message_panel_bg_text.show()
 
     def empty_messages(self):
         for id, panel in self.messagesDict.items():
@@ -150,7 +154,12 @@ class PlanetInfoView():
             self.world.money -= cost
             id = 'probe' + planet.name
             self.world.add_message(planet, id, 'info', 'Probing Mission', time)
-            taskMgr.doMethodLater(1, self.probe_mission_task, 'probeMissionTask', extraArgs=[planet, id], appendTask=True)
+            taskMgr.doMethodLater(
+                1, self.probe_mission_task,
+                'probeMissionTask',
+                extraArgs=[planet, id],
+                appendTask=True
+            )
         else:
             self.world.create_dialog("Not enough Money")
 
@@ -159,7 +168,7 @@ class PlanetInfoView():
             planet.messages[id]['value'] -= 1
         else:
             planet.probed = True
-            planet.messages.pop(id)
+            self.world.remove_message(planet, id)
             return task.done
         return task.again
 
@@ -267,10 +276,11 @@ class PlanetInfoView():
             parent=self.PlanetInfoPanel)
 
         self.PlanetInfoCloseButton = DirectButton(
-            text='Close', pos=(-0.68, 0, -0.85), scale=0.5, pad=(-0.1, -0.09), frameColor=(0, 0, 0, 0),
+            text='Close', pos=(-0.735, 0, -0.9), scale=0.5, pad=(-0.1, -0.09),
+            frameColor=(0, 0, 0, 0), parent=self.PlanetInfoPanel,
             geom=(self.world.buttonMaps), geom_scale=(0.7, 0, 1),
             text_scale=0.15, text_pos=(0, -0.03), text_fg=(1, 1, 1, 1),
-            command=self.world.toggle_planet_info_mode, extraArgs=[False], parent=self.PlanetInfoPanel)
+            command=self.world.toggle_planet_info_mode, extraArgs=[False])
 
         self.PlanetInfoProbeButton = DirectButton(
             text='Probe', pos=(1.45, 0, 0.55), pad=(0.055, 0.02), borderWidth=(0.01, 0.01),
@@ -283,12 +293,18 @@ class PlanetInfoView():
             command=self.show_colonise_mission, parent=self.PlanetInfoPanel)
 
         self.PlanetInfoBuildButton = DirectButton(
-            text='Build', pos=(1.65, 0, -0.58), scale=0.5, pad=(-0.1, -0.09), frameColor=(0, 0, 0, 0),
+            text='Build', pos=(1.65, 0, -0.58), scale=0.5, pad=(-0.1, -0.09),
+            frameColor=(0, 0, 0, 0), parent=self.PlanetInfoPanel,
             text_scale=0.15, text_pos=(0, -0.03), text_fg=(1, 1, 1, 1),
             geom_scale=(0.5, 0, 1.2), geom=(self.world.buttonMaps),
-            command=self.toggle_planet_build_mode, extraArgs=[True], parent=self.PlanetInfoPanel)
+            command=self.toggle_planet_build_mode, extraArgs=[True])
 
         self.PlanetInfoMessagePanel = DirectFrame(
             pos=(2.33, 0, 0.16), frameColor=(0.2, 0.2, 0.22, 0), frameSize=(0, 0, 0, 0),
             geom=self.problemPanelMap, geom_scale=(0.7, 0, 0.7), geom_pos=(0, 0, 0),
             parent=self.PlanetInfoPanel)
+
+        self.message_panel_bg_text = DirectLabel(
+            text='No\nIncidents', pos=(0, 0, 0), frameColor=(0, 0, 0, 0),
+            text_fg=(0.6, 0.6, 0.6, 0.6), text_align=TextNode.ACenter, text_scale=0.05,
+            parent=self.PlanetInfoMessagePanel)

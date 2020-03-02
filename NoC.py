@@ -295,6 +295,10 @@ class World(DirectObject):
     def add_message(self, planet, id, mType, text, value):
         planet.messages.update({id: {'type': mType, 'text': text, 'value': value}})
 
+    def remove_message(self, planet, id):
+        if id in planet.messages:
+            planet.messages.pop(id)
+
     def calc_distance_between_planets(self, planet1, planet2):
         pos1 = planet1.getPos()
         pos2 = planet2.getPos()
@@ -414,6 +418,7 @@ class World(DirectObject):
         self.Earth.probed = True
         self.Earth.colonised = True
         self.Earth.population = 100
+        self.Earth.habitation_cap = 100
 
     def create_gui(self):
         self.buttonModel = loader.loadModel('models/gui/buttons/simple_button_maps.egg')
@@ -436,8 +441,50 @@ class World(DirectObject):
 
         self.MapViewPanel = DirectFrame(
             frameColor=(0.2, 0.2, 0.22, 0.9),
-            frameSize=(0, 0.5, -1.2, 0),
+            frameSize=(0, 0.5, -1.25, 0),
             pos=(-1.75, 0, 0.6))
+
+        self.trading_button = DirectButton(
+            text='Trading', pos=(0.25, 0, -0.12), scale=0.5, pad=(-0.1, -0.09),
+            frameColor=(0, 0, 0, 0), parent=self.MapViewPanel,
+            geom=(self.buttonMaps), geom_scale=(0.7, 0, 1),
+            text_scale=0.15, text_pos=(0, -0.03), text_fg=(0.5, 0.5, 0.5, 1),
+            state=DGG.DISABLED)
+
+        self.research_button = DirectButton(
+            text='Research', pos=(0.25, 0, -0.32), scale=0.5, pad=(-0.1, -0.09),
+            frameColor=(0, 0, 0, 0), parent=self.MapViewPanel,
+            geom=(self.buttonMaps), geom_scale=(0.7, 0, 1),
+            text_scale=0.15, text_pos=(0, -0.03), text_fg=(0.5, 0.5, 0.5, 1),
+            state=DGG.DISABLED)
+
+        self.diplomacy_button = DirectButton(
+            text='Diplomacy', pos=(0.25, 0, -0.52), scale=0.5, pad=(-0.1, -0.09),
+            frameColor=(0, 0, 0, 0), parent=self.MapViewPanel,
+            geom=(self.buttonMaps), geom_scale=(0.7, 0, 1),
+            text_scale=0.14, text_pos=(0, -0.03), text_fg=(0.5, 0.5, 0.5, 1),
+            state=DGG.DISABLED)
+
+        self.military_button = DirectButton(
+            text='Military', pos=(0.25, 0, -0.72), scale=0.5, pad=(-0.1, -0.09),
+            frameColor=(0, 0, 0, 0), parent=self.MapViewPanel,
+            geom=(self.buttonMaps), geom_scale=(0.7, 0, 1),
+            text_scale=0.15, text_pos=(0, -0.03), text_fg=(0.5, 0.5, 0.5, 1),
+            state=DGG.DISABLED)
+
+        self.galacy_map_button = DirectButton(
+            text='Galaxy Map', pos=(0.25, 0, -0.92), scale=0.5, pad=(-0.1, -0.09),
+            frameColor=(0, 0, 0, 0), parent=self.MapViewPanel,
+            geom=(self.buttonMaps), geom_scale=(0.7, 0, 1),
+            text_scale=0.14, text_pos=(0, -0.03), text_fg=(0.5, 0.5, 0.5, 1),
+            state=DGG.DISABLED)
+
+        self.statistics_button = DirectButton(
+            text='Statistics', pos=(0.25, 0, -1.12), scale=0.5, pad=(-0.1, -0.09),
+            frameColor=(0, 0, 0, 0), parent=self.MapViewPanel,
+            geom=(self.buttonMaps), geom_scale=(0.7, 0, 1),
+            text_scale=0.14, text_pos=(0, -0.03), text_fg=(0.5, 0.5, 0.5, 1),
+            state=DGG.DISABLED)
 
     # ****************************************
     #        Debug / Testing Functions       *
