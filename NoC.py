@@ -26,7 +26,6 @@ from planetBuildView import PlanetBuildView
 from star import Star
 from planet import Planet
 from moon import Moon
-from scrolleditemselector import ScrolledItemSelector
 
 base = ShowBase()
 wp = WindowProperties()
@@ -130,13 +129,21 @@ class World(DirectObject):
     def update_cam_task(self, task):
         dt = globalClock.getDt()
         if self.keyDict['up']:
-            camera.setPos(camera.getPos()[0], camera.getPos()[1] + self.camSpeed * dt, camera.getPos()[2])
+            camera.setPos(camera.getPos()[0],
+                          camera.getPos()[1] + self.camSpeed * dt,
+                          camera.getPos()[2])
         elif self.keyDict['down']:
-            camera.setPos(camera.getPos()[0], camera.getPos()[1] - self.camSpeed * dt, camera.getPos()[2])
+            camera.setPos(camera.getPos()[0],
+                          camera.getPos()[1] - self.camSpeed * dt,
+                          camera.getPos()[2])
         if self.keyDict['left']:
-            camera.setPos(camera.getPos()[0] - self.camSpeed * dt, camera.getPos()[1], camera.getPos()[2])
+            camera.setPos(camera.getPos()[0] - self.camSpeed * dt,
+                          camera.getPos()[1],
+                          camera.getPos()[2])
         elif self.keyDict['right']:
-            camera.setPos(camera.getPos()[0] + self.camSpeed * dt, camera.getPos()[1], camera.getPos()[2])
+            camera.setPos(camera.getPos()[0] + self.camSpeed * dt,
+                          camera.getPos()[1],
+                          camera.getPos()[2])
         return task.cont
 
     def handle_zoom(self, direction):
@@ -145,11 +152,25 @@ class World(DirectObject):
         if not self.PlanetInfoModeOn:
             if direction == 'in' and camera.getPos()[2] > 8:
                 zoomInterval = camera.posInterval(
-                    0.1, Point3(camPos[0], camPos[1] + self.zoomSpeed * dt, camPos[2] - self.zoomSpeed * dt), camPos)
+                    0.1,
+                    Point3(
+                        camPos[0],
+                        camPos[1] + self.zoomSpeed * dt,
+                        camPos[2] - self.zoomSpeed * dt
+                    ),
+                    camPos
+                )
                 zoomInterval.start()
             elif direction == 'out' and camera.getPos()[2] < 50:
                 zoomInterval = camera.posInterval(
-                    0.1, Point3(camPos[0], camPos[1] - self.zoomSpeed * dt, camPos[2] + self.zoomSpeed * dt), camPos)
+                    0.1,
+                    Point3(
+                        camPos[0],
+                        camPos[1] - self.zoomSpeed * dt,
+                        camPos[2] + self.zoomSpeed * dt
+                    ),
+                    camPos
+                )
                 zoomInterval.start()
 
     def set_follow_cam_task(self, obj, scale, mode, task):
@@ -208,17 +229,30 @@ class World(DirectObject):
             camPos = camera.getPos()
             self.NewPlanetInfoView.reset(obj)
             zoomInterval = Sequence(
-                camera.posInterval(0.3, Point3(pos[0] - obj.scale * 1.25, pos[1] - obj.scale * 4, obj.scale * 4), camPos),
+                camera.posInterval(
+                    0.3,
+                    Point3(
+                        pos[0] - obj.scale * 1.25,
+                        pos[1] - obj.scale * 4,
+                        obj.scale * 4),
+                    camPos),
                 Func(self.NewPlanetInfoView.show)
             )
             zoomInterval.start()
-            taskMgr.add(self.set_follow_cam_task, 'infocamTask', extraArgs=[obj, obj.scale, 'info'], appendTask=True)
+            taskMgr.add(
+                self.set_follow_cam_task,
+                'infocamTask',
+                extraArgs=[obj, obj.scale, 'info'],
+                appendTask=True
+            )
 
         else:
             self.PlanetInfoModeOn = False
             taskMgr.remove('infocamTask')
             camPos = camera.getPos()
-            zoomInterval = Sequence(camera.posInterval(0.3, Point3(0, -30, 30), camPos), Func(self.MapViewPanel.show))
+            zoomInterval = Sequence(
+                camera.posInterval(0.3, Point3(0, -30, 30), camPos),
+                Func(self.MapViewPanel.show))
             zoomInterval.start()
             taskMgr.remove('updatePlanetInfoTask')
             self.NewPlanetInfoView.hide()
@@ -230,6 +264,7 @@ class World(DirectObject):
         habProblem = planet.habitation_cap <= planet.population
         foodProblem = (not('Vegetable crates' in planet.goods)
                        or planet.goods['Vegetable crates'] < planet.population)
+        nutrition_decrease = round(planet.population * self.food_consuming_factor)
 
         if foodProblem:
             d = random.randint(-1, 2)
@@ -239,10 +274,10 @@ class World(DirectObject):
                 planet.population -= d
         elif habProblem:
             pass
-            planet.goods['Vegetable crates'] -= round(planet.population * self.food_consuming_factor)
+            planet.goods['Vegetable crates'] -= nutrition_decrease
         else:
             planet.population += random.randint(1, 3)
-            planet.goods['Vegetable crates'] -= round(planet.population * self.food_consuming_factor)
+            planet.goods['Vegetable crates'] -= nutrition_decrease
         return task.again
 
     def count_system_population(self):
@@ -271,13 +306,15 @@ class World(DirectObject):
     def create_dialog(self, problemText, form='ok', function=lambda: None, args=[]):
         if form == 'ok':
             self.ProblemDialog = OkDialog(
-                dialogName="OkDialog", text=problemText, text_pos=(0, 0.07), command=self.cleanup_dialog, midPad=(-0.15),
-                frameColor=(0, 0, 0, 0), text_fg=(1, 1, 1, 1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
+                dialogName="OkDialog", text=problemText, text_pos=(0, 0.07),
+                command=self.cleanup_dialog, midPad=(-0.15), frameColor=(0, 0, 0, 0),
+                text_fg=(1, 1, 1, 1), text_align=TextNode.ACenter, geom=self.dialog_map,
                 extraArgs=[function, args])
         elif form == 'yesNo':
             self.ProblemDialog = YesNoDialog(
-                dialogName="OkDialog", text=problemText, text_pos=(0, 0.07), command=self.cleanup_dialog, midPad=(-0.15),
-                frameColor=(0, 0, 0, 0), text_fg=(1, 1, 1, 1), text_align=TextNode.ACenter, geom=self.infoDialogPanelMap,
+                dialogName="OkDialog", text=problemText, text_pos=(0, 0.07),
+                command=self.cleanup_dialog, midPad=(-0.15), frameColor=(0, 0, 0, 0),
+                text_fg=(1, 1, 1, 1), text_align=TextNode.ACenter, geom=self.dialog_map,
                 extraArgs=[function, args])
 
     def cleanup_dialog(self, value, function, args):
@@ -383,9 +420,11 @@ class World(DirectObject):
         self.buttonMaps = (self.buttonModel.find('**/normal'), self.buttonModel.find('**/active'),
                            self.buttonModel.find('**/normal'), self.buttonModel.find('**/disabled'))
 
-        self.infoDialogPanelMap = loader.loadModel('models/gui/panels/infodialogpanel_maps.egg').find('**/infodialogpanel')
+        self.dialog_model = loader.loadModel('models/gui/panels/infodialogpanel_maps.egg')
+        self.dialog_map = self.dialog_model.find('**/infodialogpanel')
 
-        self.HeadGUIPanel = DirectFrame(frameColor=(0.2, 0.2, 0.22, 0.9), frameSize=(0, 1.55, -0.13, 0), pos=(-1.8, 0, 1))
+        self.HeadGUIPanel = DirectFrame(
+            frameColor=(0.2, 0.2, 0.22, 0.9), frameSize=(0, 1.55, -0.13, 0), pos=(-1.8, 0, 1))
 
         self.HeadGUIText = DirectLabel(
             text=('Year ' + str(self.yearCounter) + ', '
@@ -423,27 +462,6 @@ class World(DirectObject):
 
         self.set_capital_planet()
 
-'''
-test = ScrolledItemSelector(pos=(-0.5,0,0))
-
-test.add_item(title='A')
-test.add_item(title='B')
-test.add_item(title='C')
-test.add_item(title='D')
-test.add_item(title='E')
-test.add_item(title='F')
-test.add_item(title='G')
-test.add_item(title='H')
-test.add_item(title='I')
-test.add_item(title='J')
-test.add_item(title='K')
-test.add_item(title='L')
-test.add_item(title='M')
-test.add_item(title='N')
-test.add_item(title='O')
-test.add_item(title='P')
-#test.hide()
-'''
 # end class world
 
 

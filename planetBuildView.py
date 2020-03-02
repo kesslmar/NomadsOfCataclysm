@@ -1,5 +1,4 @@
 from direct.gui.DirectGui import *
-from direct.gui.OnscreenImage import OnscreenImage
 from direct.interval.IntervalGlobal import *
 from panda3d.core import *
 
@@ -11,7 +10,7 @@ class PlanetBuildView():
         self.world = world
         self.obj = None
         self.ActiveBuildSection = 'RES'
-        self.ActiveBlueprint = None
+        self.ActiveBuildingName = None
         self.ActiveBuildSlot = [None]
         self.PlanetBuildPanelContent = []
         self.PlanetBuildSlotButtons = []
@@ -51,13 +50,13 @@ class PlanetBuildView():
                 image_scale=(0.135),
                 title=k,
                 title_pos=(-0.13, 0, 0.05),
-                text='Price: ' + str(v['Price']),
+                text='Price: ' + str(v['price']),
                 text_pos=(-0.13, 0, -0.05),
                 value=k)
 
     def clear(self):
         self.PlanetBuildPanel.clear()
-        self.ActiveBlueprint = None
+        self.ActiveBuildingName = None
         self.PlanetBuildDescriptionText['text'] = ''
 
         slot = self.ActiveBuildSlot[0]
@@ -82,8 +81,10 @@ class PlanetBuildView():
             self.ActiveBuildSection = section
 
             pos = self.PlanetBuildSlotContainer.getPos()
-            swipeOutInterval = self.PlanetBuildSlotContainer.posInterval(0.2, Point3(pos[0], pos[1], pos[2] + 2), pos)
-            swipeInInterval = self.PlanetBuildSlotContainer.posInterval(0.2, pos, Point3(pos[0], pos[1], pos[2] - 2))
+            swipeOutInterval = self.PlanetBuildSlotContainer.posInterval(
+                0.2, Point3(pos[0], pos[1], pos[2] + 2), pos)
+            swipeInInterval = self.PlanetBuildSlotContainer.posInterval(
+                0.2, pos, Point3(pos[0], pos[1], pos[2] - 2))
 
             mySeq = Sequence(swipeOutInterval, Func(self.update_slots), swipeInInterval)
             mySeq.start()
@@ -102,14 +103,14 @@ class PlanetBuildView():
                                                    'Requires: ' + building['reqText'] + '\n\n'
                                                    'Yields: ' + building['yieldText'])
 
-        self.ActiveBlueprint = building_name
+        self.ActiveBuildingName = building_name
         self.check_construct_button()
 
     def check_construct_button(self):
         section = self.ActiveBuildSection
 
         construction_possible = (
-            self.ActiveBlueprint is not None
+            self.ActiveBuildingName is not None
             and self.ActiveBuildSlot[0] is not None
             and self.obj.slots[section][self.ActiveBuildSlot[0]] is None
         )
@@ -124,8 +125,9 @@ class PlanetBuildView():
     def check_salvage_and_info(self):
         planet = self.obj.name
         section = self.ActiveBuildSection
+        slot = self.ActiveBuildSlot[0]
 
-        if self.ActiveBuildSlot[0] is not None and self.obj.slots[section][self.ActiveBuildSlot[0]] is not None:
+        if self.ActiveBuildSlot[0] is not None and self.obj.slots[section][slot] is not None:
             self.PlanetBuildSalvageButton['state'] = 'normal'
             self.PlanetBuildSalvageButton['text_fg'] = (1, 0.9, 0.9, 1)
             self.PlanetBuildSlotInfo.show()
@@ -150,81 +152,87 @@ class PlanetBuildView():
         planet = self.obj
         section = self.ActiveBuildSection
         slot = self.ActiveBuildSlot[0]
-        blueprint = self.ActiveBlueprint
-        price = self.world.BuildingsDB[section][blueprint]['Price']
+        b_name = self.ActiveBuildingName
+        b_data = self.world.BuildingsDB[section][b_name]
 
         getsBuild = False
         add_PRO_task = False
         add_RES_task = False
         add_consume_task = False
 
-        if self.world.money >= price:
+        if self.world.money >= b_data['price']:
             if section == 'ENR':
                 getsBuild = True
-                self.obj.energy_cap += self.world.BuildingsDB[section][blueprint]['incVal']
-                if blueprint == 'Coal Generator' or blueprint == 'Nuclear Reactor':
+                self.obj.energy_cap += b_data['incVal']
+                if b_name == 'Coal Generator' or b_name == 'Nuclear Reactor':
                     add_consume_task = True
             else:
-                if self.obj.energy_usg + self.world.BuildingsDB[section][blueprint]['enrgDrain'] <= self.obj.energy_cap:
+                if self.obj.energy_usg + b_data['enrDrain'] <= self.obj.energy_cap:
                     if section == 'RES':
-                        if self.world.BuildingsDB[section][blueprint]['req'] == 'Athmosphere':
+                        if b_data['req'] == 'Athmosphere':
                             if self.obj.athmosphere:
                                 getsBuild = True
                                 add_RES_task = True
-                                self.obj.energy_usg += self.world.BuildingsDB[section][blueprint]['enrgDrain']
+                                self.obj.energy_usg += b_data['enrDrain']
                             else:
                                 self.world.create_dialog('No Athmosphere present')
-                        elif self.world.BuildingsDB[section][blueprint]['req'] in self.obj.rescources:
+                        elif b_data['req'] in self.obj.rescources:
                             getsBuild = True
                             add_RES_task = True
-                            self.obj.energy_usg += self.world.BuildingsDB[section][blueprint]['enrgDrain']
+                            self.obj.energy_usg += b_data['enrDrain']
                         else:
                             self.world.create_dialog('Needed Rescource is not available')
                     elif section == 'PRO':
                         getsBuild = True
                         add_PRO_task = True
-                        self.obj.energy_usg += self.world.BuildingsDB[section][blueprint]['enrgDrain']
+                        self.obj.energy_usg += b_data['enrDrain']
                     elif section == 'HAB':
                         getsBuild = True
-                        self.obj.habitation_cap += self.world.BuildingsDB[section][blueprint]['incVal']
-                        self.obj.energy_usg += self.world.BuildingsDB[section][blueprint]['enrgDrain']
+                        self.obj.habitation_cap += b_data['incVal']
+                        self.obj.energy_usg += b_data['enrDrain']
                     elif section == 'DEV':
                         getsBuild = True
-                        self.obj.energy_usg += self.world.BuildingsDB[section][blueprint]['enrgDrain']
+                        self.obj.energy_usg += b_data['enrDrain']
                 else:
                     self.world.create_dialog('Not sufficient Energy')
         else:
             self.world.create_dialog('Not enough Money')
 
         if getsBuild:
-            self.obj.slots[section][slot] = {'name': blueprint, 'gotProblem': False, 'problemText': '', 'workers': 0, 'output': 0}
-            self.world.money -= price
+            self.obj.slots[section][slot] = {
+                'name': b_name,
+                'gotProblem': False,
+                'problemText': '',
+                'workers': 0,
+                'output': 0
+            }
+            self.world.money -= b_data['price']
             self.update_slots()
 
         if add_RES_task:
-            good = self.world.BuildingsDB[section][blueprint]['yield']
-            incVal = self.world.BuildingsDB[section][blueprint]['incVal']
+            good = b_data['yield']
+            incVal = b_data['incVal']
             taskMgr.doMethodLater(
-                3, self.extract_rescource_task, blueprint + slot,
+                3, self.extract_rescource_task, b_name + slot,
                 extraArgs=[planet, section, slot, good, incVal],
                 appendTask=True)
 
         if add_PRO_task:
-            inGood = self.world.BuildingsDB[section][blueprint]['req']
-            outGood = self.world.BuildingsDB[section][blueprint]['yield']
-            incVal = self.world.BuildingsDB[section][blueprint]['incVal']
-            decVal = self.world.BuildingsDB[section][blueprint]['decVal']
+            inGood = b_data['req']
+            outGood = b_data['yield']
+            incVal = b_data['incVal']
+            decVal = b_data['decVal']
             taskMgr.doMethodLater(
-                3, self.process_good_task, blueprint + slot,
+                3, self.process_good_task, b_name + slot,
                 extraArgs=[planet, section, slot, inGood, outGood, incVal, decVal],
                 appendTask=True)
 
         if add_consume_task:
-            good = self.world.BuildingsDB[section][blueprint]['req']
-            decVal = self.world.BuildingsDB[section][blueprint]['decVal']
-            incVal = self.world.BuildingsDB[section][blueprint]['incVal']
+            good = b_data['req']
+            decVal = b_data['decVal']
+            incVal = b_data['incVal']
             taskMgr.doMethodLater(
-                3, self.consume_good_task, blueprint + slot,
+                3, self.consume_good_task, b_name + slot,
                 extraArgs=[planet, section, slot, good, decVal, incVal],
                 appendTask=True)
 
@@ -237,7 +245,7 @@ class PlanetBuildView():
         blueprint = self.obj.slots[section][slot]['name']
         price = self.world.BuildingsDB[section][blueprint]['Price']
         incVal = self.world.BuildingsDB[section][blueprint]['incVal']
-        enrgDrain = self.world.BuildingsDB[section][blueprint]['enrgDrain']
+        enrDrain = self.world.BuildingsDB[section][blueprint]['enrDrain']
 
         getsSalvaged = True
 
@@ -250,7 +258,7 @@ class PlanetBuildView():
 
         if getsSalvaged:
             self.obj.slots[section][slot] = None
-            self.obj.energy_usg -= enrgDrain
+            self.obj.energy_usg -= enrDrain
             self.world.money += round(price * self.world.salvage_factor)
             self.update_slots()
 
@@ -285,7 +293,9 @@ class PlanetBuildView():
         habCap = planet.habitation_cap
 
         self.PlanetBuildQuickText1['text'] = (
-            'ATHM: {} - WIND: {} - ENR: {}/{} - POP: {}/{}'.format(athm, wind, enrgUsg, enrgCap, pop, habCap)
+            'ATHM: {} - WIND: {} - ENR: {}/{} - POP: {}/{}'.format(
+                athm, wind, enrgUsg, enrgCap, pop, habCap
+            )
         )
 
         self.PlanetBuildQuickText2['text'] = 'RES: '
@@ -305,14 +315,16 @@ class PlanetBuildView():
 
         if planet.energy_cap < planet.energy_usg:
             if not planet.slots[section][slot]['gotProblem']:
+                problem = 'Not enough energy to continue extraction'
                 planet.slots[section][slot]['gotProblem'] = True
-                planet.slots[section][slot]['problemText'] = 'Not enough energy to continue extraction'
+                planet.slots[section][slot]['problemText'] = problem
                 self.update_slots()
                 self.fill_slot_info(planet, section, slot)
         elif planet.goods[good] >= self.world.goods_cap:
             if not planet.slots[section][slot]['gotProblem']:
+                problem = 'Storage is full'
                 planet.slots[section][slot]['gotProblem'] = True
-                planet.slots[section][slot]['problemText'] = 'Storage is full'
+                planet.slots[section][slot]['problemText'] = problem
                 self.update_slots()
                 self.fill_slot_info(planet, section, slot)
         else:
@@ -329,20 +341,23 @@ class PlanetBuildView():
 
         if not (inGood in planet.goods) or planet.goods[inGood] < decVal:
             if not planet.slots[section][slot]['gotProblem']:
+                problem = 'Missing {} to continue production'.format(inGood)
                 planet.slots[section][slot]['gotProblem'] = True
-                planet.slots[section][slot]['problemText'] = 'Missing {} to continue production'.format(inGood)
+                planet.slots[section][slot]['problemText'] = problem
                 self.update_slots()
                 self.fill_slot_info(planet, section, slot)
         elif planet.energy_cap < planet.energy_usg:
             if not planet.slots[section][slot]['gotProblem']:
+                problem = 'Not enough energy to continue production'
                 planet.slots[section][slot]['gotProblem'] = True
-                planet.slots[section][slot]['problemText'] = 'Not enough energy to continue production'
+                planet.slots[section][slot]['problemText'] = problem
                 self.update_slots()
                 self.fill_slot_info(planet, section, slot)
         elif planet.goods[outGood] >= self.world.goods_cap:
             if not planet.slots[section][slot]['gotProblem']:
+                problem = 'Storage is full'
                 planet.slots[section][slot]['gotProblem'] = True
-                planet.slots[section][slot]['problemText'] = 'Storage is full'
+                planet.slots[section][slot]['problemText'] = problem
                 self.update_slots()
                 self.fill_slot_info(planet, section, slot)
         else:
@@ -363,8 +378,9 @@ class PlanetBuildView():
 
         if not (good in planet.goods) or planet.goods[good] < decVal:
             if not planet.slots[section][slot]['gotProblem']:
+                problem = 'Missing {} to continue service'.format(good)
                 planet.slots[section][slot]['gotProblem'] = True
-                planet.slots[section][slot]['problemText'] = 'Missing {} to continue service'.format(good)
+                planet.slots[section][slot]['problemText'] = problem
                 self.update_slots()
                 self.fill_slot_info(planet, section, slot)
                 if section == 'ENR':
@@ -391,19 +407,14 @@ class PlanetBuildView():
             'models/gui/panels/blueprintdescription_maps.egg').find('**/blueprintdescription')
 
         build_button_model = loader.loadModel('models/gui/buttons/build/build_buttons.egg')
-        self.build_button_maps = (build_button_model.find('**/normal'), build_button_model.find('**/active'),
-                     build_button_model.find('**/normal'), build_button_model.find('**/disabled'))
+        self.build_button_maps = (
+            build_button_model.find('**/normal'), build_button_model.find('**/active'),
+            build_button_model.find('**/normal'), build_button_model.find('**/disabled'))
 
         salvage_button_model = loader.loadModel('models/gui/buttons/salvage/salvage_buttons.egg')
-        self.salvage_button_maps = (salvage_button_model.find('**/normal'), salvage_button_model.find('**/active'),
-                     salvage_button_model.find('**/normal'), salvage_button_model.find('**/disabled'))
-
-        #self.PlanetBuildPanel = DirectFrame(
-        #    frameColor=(0.15, 0.15, 0.15, 0), frameSize=(-0.4, 1.23, 0.66, -0.65), pos=(-1.35, 0, 0),
-        #    geom=self.build_panel_map, geom_scale=(0.77, 1, 0.77), geom_pos=(0, 0, 0.08))
-        #self.PlanetBuildPanel.hide()
-
-        #self.PlanetBuildPanelContent = []
+        self.salvage_button_maps = (
+            salvage_button_model.find('**/normal'), salvage_button_model.find('**/active'),
+            salvage_button_model.find('**/normal'), salvage_button_model.find('**/disabled'))
 
         self.PlanetBuildPanel = ScrolledItemSelector(
             frame_size=(0.87, 1.37), frame_color=(0.2, 0.2, 0.2, 1), pos=(-1.34, 0, 0),
@@ -424,17 +435,20 @@ class PlanetBuildView():
             text='Construct', pos=(-0.04, 0, -0.5), pad=(0, 0), borderWidth=(0, 0),
             text_scale=0.08, frameColor=(0, 0, 0, 0), text_fg=(0.9, 1, 0.9, 1),
             geom=(self.build_button_maps), geom_scale=(0.5, 0, 0.5), geom_pos=(0, 0, 0.02),
-            command=self.construct_building, parent=self.PlanetBuildDescriptionField, state='disabled')
+            command=self.construct_building, parent=self.PlanetBuildDescriptionField,
+            state='disabled')
 
         self.PlanetBuildSalvageButton = DirectButton(
             text='Salvage', pos=(-0.04, 0, -0.68), pad=(0, 0), borderWidth=(0, 0),
             text_scale=0.08, frameColor=(0, 0, 0, 0), text_fg=(1, 0.9, 0.9, 1),
             geom=(self.salvage_button_maps), geom_scale=(0.5, 0, 0.5), geom_pos=(0, 0, 0.02),
-            command=self.salvage_building, parent=self.PlanetBuildDescriptionField, state='disabled')
+            command=self.salvage_building, parent=self.PlanetBuildDescriptionField,
+            state='disabled')
 
         self.PlanetBuildCloseButton = DirectButton(
-            text='Back', pos=(-1.54, 0, -0.9), scale=0.5, pad=(-0.1, -0.09), frameColor=(0, 0, 0, 0),
-            text_scale=0.15, text_pos=(0, -0.03), text_fg=(1, 1, 1, 1), geom_scale=(0.7, 0, 1), geom=(self.world.buttonMaps),
+            text='Back', pos=(-1.54, 0, -0.9), scale=0.5, pad=(-0.1, -0.09),
+            text_scale=0.15, text_pos=(0, -0.03), text_fg=(1, 1, 1, 1),
+            geom_scale=(0.7, 0, 1), geom=(self.world.buttonMaps), frameColor=(0, 0, 0, 0),
             command=self.world.NewPlanetInfoView.toggle_planet_build_mode, extraArgs=[False])
         self.PlanetBuildCloseButton.hide()
 
@@ -446,7 +460,8 @@ class PlanetBuildView():
         self.PlanetBuildRESButton = DirectButton(
             text='Rescources', pos=(-0.8, 0, 0), pad=(0.03, 0.02), borderWidth=(0.01, 0.01),
             text_scale=0.06, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
-            command=self.switch_build_section, parent=self.PlanetBuildSectionContainer, relief='sunken')
+            command=self.switch_build_section, parent=self.PlanetBuildSectionContainer,
+            relief='sunken')
         self.PlanetBuildRESButton['extraArgs'] = ['RES', self.PlanetBuildRESButton]
 
         self.PlanetBuildPROButton = DirectButton(
@@ -482,18 +497,21 @@ class PlanetBuildView():
 
         self.PlanetBuildQuickText1 = DirectLabel(
             text='ATHM: Yes  -  WIND: 1  -  HAB: 20/100  -  ENR: 60/100',
-            pos=(0.03, 0, 0.015), text_fg=(0.9, 0.9, 0.9, 1), frameColor=(0, 0, 0, 0), text_scale=0.05,
-            frameSize=(0, 0.8, 0, 0.5), parent=self.PlanetBuildQuickInfo, text_align=TextNode.ALeft)
+            pos=(0.03, 0, 0.015), text_fg=(0.9, 0.9, 0.9, 1), frameColor=(0, 0, 0, 0),
+            text_scale=0.05, frameSize=(0, 0.8, 0, 0.5), parent=self.PlanetBuildQuickInfo,
+            text_align=TextNode.ALeft)
 
         self.PlanetBuildQuickText2 = DirectLabel(
             text='RES: Coal, Iron, Uranium',
-            pos=(0.03, 0, -0.038), text_fg=(0.9, 0.9, 0.9, 1), frameColor=(0, 0, 0, 0), text_scale=0.05,
-            frameSize=(0, 0.8, 0, 0.5), parent=self.PlanetBuildQuickInfo, text_align=TextNode.ALeft)
+            pos=(0.03, 0, -0.038), text_fg=(0.9, 0.9, 0.9, 1), frameColor=(0, 0, 0, 0),
+            text_scale=0.05, frameSize=(0, 0.8, 0, 0.5), parent=self.PlanetBuildQuickInfo,
+            text_align=TextNode.ALeft)
 
         self.PlanetBuildQuickText3 = DirectLabel(
             text='GOODS: Coal sacks, Uranium rods',
-            pos=(0.7, 0, -0.038), text_fg=(0.9, 0.9, 0.9, 1), frameColor=(0, 0, 0, 0), text_scale=0.05,
-            frameSize=(0, 0.8, 0, 0.5), parent=self.PlanetBuildQuickInfo, text_align=TextNode.ALeft)
+            pos=(0.7, 0, -0.038), text_fg=(0.9, 0.9, 0.9, 1), frameColor=(0, 0, 0, 0),
+            text_scale=0.05, frameSize=(0, 0.8, 0, 0.5), parent=self.PlanetBuildQuickInfo,
+            text_align=TextNode.ALeft)
 
         # Buttons and labels for the planet build slots
         # ----------------------------------------------
@@ -580,5 +598,5 @@ class PlanetBuildView():
 
         self.PlanetBuildSlotInfoText = DirectLabel(
             text='', text_scale=0.06, text_fg=(1, 1, 1, 1), text_bg=(0, 0, 0, 0),
-            frameColor=(0, 0, 0, 0), pos=(0.04, 0, -0.09), text_align=TextNode.ALeft, text_wordwrap=15,
-            parent=self.PlanetBuildSlotInfo)
+            frameColor=(0, 0, 0, 0), pos=(0.04, 0, -0.09), text_align=TextNode.ALeft,
+            text_wordwrap=15, parent=self.PlanetBuildSlotInfo)

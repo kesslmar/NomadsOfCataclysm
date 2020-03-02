@@ -24,14 +24,13 @@ class TestNoC(unittest.TestCase):
         """ Simulate build process of a wind turbine on earth"""
         self.w.toggle_planet_info_mode(True, self.w.Earth)
         self.w.NewPlanetInfoView.toggle_planet_build_mode(True)
-        
+
         self.w.NewPlanetBuildView.switch_build_section(
             'ENR', self.w.NewPlanetBuildView.PlanetBuildENRButton)
-        
-        self.w.NewPlanetBuildView.switch_build_blueprint(
-            self.w.NewPlanetBuildView.PlanetBuildPanelContent[0],
-            self.w.NewPlanetBuildView.PlanetBuildPanelContent[0]['extraArgs'][1])
-        
+
+        self.w.NewPlanetBuildView.PlanetBuildPanel.set_active_item(0)
+        self.w.NewPlanetBuildView.switch_build_blueprint()
+
         self.w.NewPlanetBuildView.ActiveBuildSlot = '1'
         self.w.NewPlanetBuildView.switch_build_slot()
 
@@ -51,7 +50,6 @@ class TestNoC(unittest.TestCase):
         )
         self.w.NewPlanetInfoView.start_colonise_mission(self.w.Mars, 'Mars', dist, 5, 3000)
         self.assertNotEqual(self.w.Mars.messages, {})
-
 
 
 if __name__ == "__main__":

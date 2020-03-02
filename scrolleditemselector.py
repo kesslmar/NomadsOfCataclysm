@@ -1,15 +1,13 @@
-from direct.showbase.ShowBase import ShowBase
 from direct.showbase.DirectObject import DirectObject
 from direct.gui.OnscreenImage import OnscreenImage
 from panda3d.core import *
-from direct.gui.DirectGui import DirectFrame,DirectButton,DirectScrolledFrame,DirectRadioButton,DirectLabel, DGG
-import math
+from direct.gui.DirectGui import DirectFrame, DirectScrolledFrame, DirectLabel, DGG
 
 
 class ScrolledItemSelector(DirectObject):
     '''Touch optimised list that holds a set of items. By clicking on one you select it and return
-    its Value with get_selected(). To add an item simply use add_item(). You can also pass a function
-    with the 'command' field that gets called on a selection switch'''
+    its Value with get_selected(). To add an item simply use add_item(). You can also pass a
+    function with the 'command' field that gets called on a selection switch'''
 
     def __init__(self,
                  frame_size=(1, 1.5),
@@ -31,12 +29,12 @@ class ScrolledItemSelector(DirectObject):
         self.item_v_padding = item_v_padding
         self.item_h_padding = item_h_padding
         self.item_scale = item_scale
-        self.item_background=item_background
+        self.item_background = item_background
         self.item_background_active = item_background_active
 
         self.frame = DirectScrolledFrame(
-            frameSize=(-self.f_x/2, self.f_x/2, -self.f_y/2, self.f_y/2),
-            canvasSize=(-self.c_x/2, self.c_x/2, -self.c_y/2, self.c_y/2),
+            frameSize=(-self.f_x / 2, self.f_x / 2, -self.f_y / 2, self.f_y / 2),
+            canvasSize=(-self.c_x / 2, self.c_x / 2, -self.c_y / 2, self.c_y / 2),
             frameColor=frame_color,
             pos=pos,
             scrollBarWidth=(0),
@@ -50,11 +48,11 @@ class ScrolledItemSelector(DirectObject):
 
         self.canvas = self.frame.getCanvas()
 
-        self.i_x = self.f_x * (1-item_h_padding)
+        self.i_x = self.f_x * (1 - item_h_padding)
         self.i_y = self.f_y * item_side_ratio
-        self.i_size = (-self.i_x/2, self.i_x/2, -self.i_y/2, self.i_y/2)
+        self.i_size = (-self.i_x / 2, self.i_x / 2, -self.i_y / 2, self.i_y / 2)
 
-        self.i_start = self.c_y/2 + self.i_y/2
+        self.i_start = self.c_y / 2 + self.i_y / 2
 
         self.active_item = None
         self.item_list = []
@@ -91,7 +89,7 @@ class ScrolledItemSelector(DirectObject):
     def _start_scroll(self):
         n = len(self.item_list)
         content_length = (
-            (n*(self.i_y + self.item_v_padding)) +  # Size of all elements with padding
+            (n * (self.i_y + self.item_v_padding)) +  # Size of all elements with padding
             self.item_v_padding)                   # Add one padding for the bottom
 
         if content_length > self.c_y:
@@ -115,7 +113,7 @@ class ScrolledItemSelector(DirectObject):
 
         self.c_scroll_start = 0
         self.c_scroll_stop = (
-            (n*(self.i_y + self.item_v_padding)) +  # Size of all elements with padding
+            (n * (self.i_y + self.item_v_padding)) +  # Size of all elements with padding
             self.item_v_padding -                   # Add one padding for the bottom
             self.f_y)                               # Substract the length of the canvas
         self.c_new_pos = (old_c - self.m_diff)
@@ -144,9 +142,9 @@ class ScrolledItemSelector(DirectObject):
         n = len(self.item_list)
         self.c_scroll_start = 0
         self.c_scroll_stop = (
-            (n*(self.i_y + self.item_v_padding)) +  # Size of all elements with padding
-            self.item_v_padding -                   # Add one padding for the bottom
-            self.c_y)                               # Substract the length of the canvas
+            (n * (self.i_y + self.item_v_padding)) +  # Size of all elements with padding
+            self.item_v_padding -                     # Add one padding for the bottom
+            self.c_y)                                 # Substract the length of the canvas
 
         hits_not_upper_bound = (old_c - self.m_diff) >= self.c_scroll_start
         hits_not_lower_bound = (old_c - self.m_diff) <= self.c_scroll_stop
@@ -182,19 +180,20 @@ class ScrolledItemSelector(DirectObject):
         values of an activated element. Value gets set to the item on adding it.'''
 
         item_nr = len(self.item_list) + 1
-        item_pos = self.i_start - (self.i_y + self.item_v_padding)*item_nr
+        item_pos = self.i_start - (self.i_y + self.item_v_padding) * item_nr
 
-        item = DirectFrame(parent=self.canvas,
-                    text=str(item_nr),  # Abused as an ID tag
-                    text_fg=(0, 0, 0, 0),
-                    frameSize=self.i_size,
-                    frameColor=self.item_background,
-                    borderWidth=(0.01, 0.01),
-                    pos=(0, 0, item_pos),
-                    relief=DGG.FLAT,
-                    state=DGG.NORMAL,
-                    enableEdit=0,
-                    suppressMouse=0)
+        item = DirectFrame(
+            parent=self.canvas,
+            text=str(item_nr),  # Abused as an ID tag
+            text_fg=(0, 0, 0, 0),
+            frameSize=self.i_size,
+            frameColor=self.item_background,
+            borderWidth=(0.01, 0.01),
+            pos=(0, 0, item_pos),
+            relief=DGG.FLAT,
+            state=DGG.NORMAL,
+            enableEdit=0,
+            suppressMouse=0)
         item.bind(DGG.B1RELEASE, self._switch_active_item, [item])
 
         if image is not None:
@@ -225,6 +224,9 @@ class ScrolledItemSelector(DirectObject):
 
     def get_active_item(self):
         return self.active_item
+
+    def set_active_item(self, pos):
+        self._switch_active_item(self.item_list[pos], None)
 
     def get_active_id(self):
         return int(self.active_item['text'])
