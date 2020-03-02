@@ -26,6 +26,7 @@ from planetBuildView import PlanetBuildView
 from star import Star
 from planet import Planet
 from moon import Moon
+from scrolleditemselector import ScrolledItemSelector
 
 base = ShowBase()
 wp = WindowProperties()
@@ -318,6 +319,7 @@ class World(DirectObject):
         self.Mars = Planet(self, 'Mars', 'models/planet_sphere',
                            'models/mars_1k_tex.jpg', self.orbit_root_mars,
                            0.512, 1.52, False, 1, {'Gemstone': 'Rare', 'Iron': 'Rare'})
+        self.Mars.probed = True
 
         self.Earth = Planet(self, 'Earth', 'models/planet_sphere',
                             'models/earth_1k_tex.jpg', self.orbit_root_earth,
@@ -420,8 +422,28 @@ class World(DirectObject):
             planet.reset()
 
         self.set_capital_planet()
-        
 
+'''
+test = ScrolledItemSelector(pos=(-0.5,0,0))
+
+test.add_item(title='A')
+test.add_item(title='B')
+test.add_item(title='C')
+test.add_item(title='D')
+test.add_item(title='E')
+test.add_item(title='F')
+test.add_item(title='G')
+test.add_item(title='H')
+test.add_item(title='I')
+test.add_item(title='J')
+test.add_item(title='K')
+test.add_item(title='L')
+test.add_item(title='M')
+test.add_item(title='N')
+test.add_item(title='O')
+test.add_item(title='P')
+#test.hide()
+'''
 # end class world
 
 

@@ -1,8 +1,9 @@
-
 from direct.gui.DirectGui import *
 from direct.gui.OnscreenImage import OnscreenImage
 from direct.interval.IntervalGlobal import *
 from panda3d.core import *
+
+from scrolleditemselector import ScrolledItemSelector
 
 
 class PlanetBuildView():
@@ -27,41 +28,35 @@ class PlanetBuildView():
 
     def show(self):
         self.PlanetBuildPanel.show()
+        self.PlanetBuildDescriptionField.show()
+        self.PlanetBuildCloseButton.show()
+        self.PlanetBuildSlotContainer.show()
+        self.PlanetBuildSectionContainer.show()
+        self.PlanetBuildQuickInfo.show()
 
     def hide(self):
         self.PlanetBuildPanel.hide()
+        self.PlanetBuildDescriptionField.hide()
+        self.PlanetBuildCloseButton.hide()
+        self.PlanetBuildSlotContainer.hide()
+        self.PlanetBuildSectionContainer.hide()
+        self.PlanetBuildQuickInfo.hide()
 
     def fill(self):
-        i = 0
         section = self.ActiveBuildSection
-
         for k, v in self.world.BuildingsDB[section].items():
-            newBlueprint = DirectButton(
-                frameColor=(0.15, 0.15, 0.15, 0.7),
-                frameSize=(-0.4, 0.4, -0.125, 0.125), relief='flat',
-                text=k, text_fg=(0, 0, 0, 0),
-                pos=(0, 0, 0.53 - i * 0.26), parent=self.PlanetBuildPanel,
-                command=self.switch_build_blueprint)
-            newBlueprint['extraArgs'] = [newBlueprint, v]
-            self.PlanetBuildPanelContent.append(newBlueprint)
-
-            OnscreenImage(  # Append image to blueprint
-                image=v['img'], pos=(-0.27, 0, 0.003), scale=(0.125, 1, 0.12), parent=(newBlueprint))
-
-            DirectLabel(  # Add title to blueprint
-                text=k, pos=(-0.1, 0, 0.05), text_fg=(1, 1, 1, 1), frameColor=(0, 0, 0, 0),
-                parent=newBlueprint, text_align=TextNode.ALeft, text_scale=0.06)
-
-            DirectLabel(  # Add attribute text to blueprint
-                text=('Price: ' + str(v['Price'])), pos=(-0.1, 0, -0.02), text_fg=(1, 1, 1, 1),
-                frameColor=(0, 0, 0, 0), parent=newBlueprint, text_align=TextNode.ALeft, text_scale=0.045)
-
-            i += 1
+            self.PlanetBuildPanel.add_item(
+                image=v['img'],
+                image_pos=(-0.28, 0, 0),
+                image_scale=(0.135),
+                title=k,
+                title_pos=(-0.13, 0, 0.05),
+                text='Price: ' + str(v['Price']),
+                text_pos=(-0.13, 0, -0.05),
+                value=k)
 
     def clear(self):
-        for element in self.PlanetBuildPanelContent:
-            element.destroy()
-        self.PlanetBuildPanelContent = []
+        self.PlanetBuildPanel.clear()
         self.ActiveBlueprint = None
         self.PlanetBuildDescriptionText['text'] = ''
 
@@ -99,18 +94,15 @@ class PlanetBuildView():
         self.check_construct_button()
         self.check_salvage_and_info()
 
-    def switch_build_blueprint(self, blueprint, building):
-        if self.ActiveBlueprint is not None:
-            self.ActiveBlueprint['frameColor'] = (0.15, 0.15, 0.15, 0.9)
-        else:
-            self.PlanetBuildDescriptionField.show()
-        self.ActiveBlueprint = blueprint
-        blueprint['frameColor'] = (0.3, 0.3, 0.3, 0.9)
-
+    def switch_build_blueprint(self):
+        section = self.ActiveBuildSection
+        building_name = self.PlanetBuildPanel.get_active_value()
+        building = self.world.BuildingsDB[section][building_name]
         self.PlanetBuildDescriptionText['text'] = (building['desc'] + '\n\n'
                                                    'Requires: ' + building['reqText'] + '\n\n'
                                                    'Yields: ' + building['yieldText'])
 
+        self.ActiveBlueprint = building_name
         self.check_construct_button()
 
     def check_construct_button(self):
@@ -158,7 +150,7 @@ class PlanetBuildView():
         planet = self.obj
         section = self.ActiveBuildSection
         slot = self.ActiveBuildSlot[0]
-        blueprint = self.ActiveBlueprint['text']
+        blueprint = self.ActiveBlueprint
         price = self.world.BuildingsDB[section][blueprint]['Price']
 
         getsBuild = False
@@ -397,7 +389,7 @@ class PlanetBuildView():
             'models/gui/panels/blueprintlist_maps.egg').find('**/blueprintlist')
         self.build_description_map = loader.loadModel(
             'models/gui/panels/blueprintdescription_maps.egg').find('**/blueprintdescription')
-        
+
         build_button_model = loader.loadModel('models/gui/buttons/build/build_buttons.egg')
         self.build_button_maps = (build_button_model.find('**/normal'), build_button_model.find('**/active'),
                      build_button_model.find('**/normal'), build_button_model.find('**/disabled'))
@@ -406,17 +398,22 @@ class PlanetBuildView():
         self.salvage_button_maps = (salvage_button_model.find('**/normal'), salvage_button_model.find('**/active'),
                      salvage_button_model.find('**/normal'), salvage_button_model.find('**/disabled'))
 
-        self.PlanetBuildPanel = DirectFrame(
-            frameColor=(0.15, 0.15, 0.15, 0), frameSize=(-0.4, 1.23, 0.66, -0.65), pos=(-1.35, 0, 0),
-            geom=self.build_panel_map, geom_scale=(0.77, 1, 0.77), geom_pos=(0, 0, 0.08))
+        #self.PlanetBuildPanel = DirectFrame(
+        #    frameColor=(0.15, 0.15, 0.15, 0), frameSize=(-0.4, 1.23, 0.66, -0.65), pos=(-1.35, 0, 0),
+        #    geom=self.build_panel_map, geom_scale=(0.77, 1, 0.77), geom_pos=(0, 0, 0.08))
+        #self.PlanetBuildPanel.hide()
+
+        #self.PlanetBuildPanelContent = []
+
+        self.PlanetBuildPanel = ScrolledItemSelector(
+            frame_size=(0.87, 1.37), frame_color=(0.2, 0.2, 0.2, 1), pos=(-1.34, 0, 0),
+            command=self.switch_build_blueprint)
         self.PlanetBuildPanel.hide()
 
-        self.PlanetBuildPanelContent = []
-
         self.PlanetBuildDescriptionField = DirectFrame(
-            pos=(0.825, 0, 0.41), frameColor=(0.2, 0.2, 0.22, 0), frameSize=(-0.4, 0.4, 0.25, -0.25),
-            geom=self.build_description_map, geom_scale=(0.7, 1, 0.77), geom_pos=(0.02, 0, -0.047),
-            parent=self.PlanetBuildPanel)
+            pos=(-0.5, 0, 0.41), frameColor=(0.2, 0.2, 0.22, 0), frameSize=(-0.4, 0.4, 0.25, -0.25),
+            geom=self.build_description_map, geom_scale=(0.7, 1, 0.77), geom_pos=(0.02, 0, -0.047))
+        self.PlanetBuildDescriptionField.hide()
 
         self.PlanetBuildDescriptionText = DirectLabel(
             text='', pos=(-0.35, 0, 0.19), frameSize=(0, 0.8, 0, 0.5), frameColor=(0, 0, 0, 0),
@@ -436,47 +433,52 @@ class PlanetBuildView():
             command=self.salvage_building, parent=self.PlanetBuildDescriptionField, state='disabled')
 
         self.PlanetBuildCloseButton = DirectButton(
-            text='Back', pos=(-0.18, 0, -0.9), scale=0.5, pad=(-0.1, -0.09), frameColor=(0, 0, 0, 0),
+            text='Back', pos=(-1.54, 0, -0.9), scale=0.5, pad=(-0.1, -0.09), frameColor=(0, 0, 0, 0),
             text_scale=0.15, text_pos=(0, -0.03), text_fg=(1, 1, 1, 1), geom_scale=(0.7, 0, 1), geom=(self.world.buttonMaps),
-            command=self.world.NewPlanetInfoView.toggle_planet_build_mode, extraArgs=[False], parent=self.PlanetBuildPanel)
+            command=self.world.NewPlanetInfoView.toggle_planet_build_mode, extraArgs=[False])
+        self.PlanetBuildCloseButton.hide()
 
         # Section select buttons
         # ----------------------
+        self.PlanetBuildSectionContainer = DirectFrame(pos=(0, 0, 0.75))
+        self.PlanetBuildSectionContainer.hide()
+
         self.PlanetBuildRESButton = DirectButton(
-            text='Rescources', pos=(0.4, 0, 0.75), pad=(0.03, 0.02), borderWidth=(0.01, 0.01),
+            text='Rescources', pos=(-0.8, 0, 0), pad=(0.03, 0.02), borderWidth=(0.01, 0.01),
             text_scale=0.06, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
-            command=self.switch_build_section, parent=self.PlanetBuildPanel, relief='sunken')
+            command=self.switch_build_section, parent=self.PlanetBuildSectionContainer, relief='sunken')
         self.PlanetBuildRESButton['extraArgs'] = ['RES', self.PlanetBuildRESButton]
 
         self.PlanetBuildPROButton = DirectButton(
-            text='Production', pos=(0.79, 0, 0.75), pad=(0.03, 0.02), borderWidth=(0.01, 0.01),
+            text='Production', pos=(-0.4, 0, 0), pad=(0.03, 0.02), borderWidth=(0.01, 0.01),
             text_scale=0.06, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
-            command=self.switch_build_section, parent=self.PlanetBuildPanel)
+            command=self.switch_build_section, parent=self.PlanetBuildSectionContainer)
         self.PlanetBuildPROButton['extraArgs'] = ['PRO', self.PlanetBuildPROButton]
 
         self.PlanetBuildENRButton = DirectButton(
-            text='Energy', pos=(1.19, 0, 0.755), pad=(0.1, 0.017), borderWidth=(0.01, 0.01),
+            text='Energy', pos=(0, 0, 0.005), pad=(0.1, 0.017), borderWidth=(0.01, 0.01),
             text_scale=0.06, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
-            command=self.switch_build_section, parent=self.PlanetBuildPanel)
+            command=self.switch_build_section, parent=self.PlanetBuildSectionContainer)
         self.PlanetBuildENRButton['extraArgs'] = ['ENR', self.PlanetBuildENRButton]
 
         self.PlanetBuildDEVButton = DirectButton(
-            text='Developement', pos=(1.64, 0, 0.755), pad=(0.03, 0.017), borderWidth=(0.01, 0.01),
+            text='Developement', pos=(0.44, 0, 0.005), pad=(0.03, 0.017), borderWidth=(0.01, 0.01),
             text_scale=0.06, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
-            command=self.switch_build_section, parent=self.PlanetBuildPanel)
+            command=self.switch_build_section, parent=self.PlanetBuildSectionContainer)
         self.PlanetBuildDEVButton['extraArgs'] = ['DEV', self.PlanetBuildDEVButton]
 
         self.PlanetBuildHABButton = DirectButton(
-            text='Habitation', pos=(2.06, 0, 0.75), pad=(0.03, 0.02), borderWidth=(0.01, 0.01),
+            text='Habitation', pos=(0.85, 0, 0), pad=(0.03, 0.02), borderWidth=(0.01, 0.01),
             text_scale=0.06, frameColor=(0.15, 0.15, 0.15, 0.9), text_fg=(1, 1, 1, 1),
-            command=self.switch_build_section, parent=self.PlanetBuildPanel)
+            command=self.switch_build_section, parent=self.PlanetBuildSectionContainer)
         self.PlanetBuildHABButton['extraArgs'] = ['HAB', self.PlanetBuildHABButton]
 
         # Elements for the quick info
         # ---------------------------
         self.PlanetBuildQuickInfo = DirectFrame(
-            frameSize=(0, 1.63, -0.08, 0.07), pos=(-0.4, 0, -0.73),
-            frameColor=(0.15, 0.15, 0.15, 0.9), parent=self.PlanetBuildPanel)
+            frameSize=(0, 1.4, -0.08, 0.07), pos=(0.3, 0, -0.8),
+            frameColor=(0.15, 0.15, 0.15, 0.9))
+        self.PlanetBuildQuickInfo.hide()
 
         self.PlanetBuildQuickText1 = DirectLabel(
             text='ATHM: Yes  -  WIND: 1  -  HAB: 20/100  -  ENR: 60/100',
@@ -499,8 +501,8 @@ class PlanetBuildView():
         slot_maps = (slot_model.find('**/normal'), slot_model.find('**/active'),
                      slot_model.find('**/normal'), slot_model.find('**/disabled'))
 
-        self.PlanetBuildSlotContainer = DirectFrame(pos=(1.5, 0, 0), frameColor=(0.5, 0.5, 0.5, 1))
-        self.PlanetBuildSlotContainer.reparentTo(self.PlanetBuildPanel)
+        self.PlanetBuildSlotContainer = DirectFrame(pos=(0.15, 0, 0), frameColor=(0.5, 0.5, 0.5, 1))
+        self.PlanetBuildSlotContainer.hide()
 
         self.PlanetBuildSlotButtons = [
 
@@ -575,7 +577,6 @@ class PlanetBuildView():
         self.PlanetBuildSlotInfo = DirectFrame(
             pos=(0.4, 0, 0.35), frameSize=(0, 0.9, -0.7, 0), frameColor=(0.2, 0.2, 0.25, 0.8),
             parent=self.PlanetBuildSlotContainer, text_scale=0.03, text_fg=(1, 1, 1, 1))
-        self.PlanetBuildSlotInfo.hide()
 
         self.PlanetBuildSlotInfoText = DirectLabel(
             text='', text_scale=0.06, text_fg=(1, 1, 1, 1), text_bg=(0, 0, 0, 0),
