@@ -64,7 +64,7 @@ class ScrolledItemSelector(DirectObject):
         self.is_scrolling = False
         self.command = command
 
-        messenger.toggleVerbose()
+        # messenger.toggleVerbose()
 
     def _start_listening(self, watcher):
         print('start listening')

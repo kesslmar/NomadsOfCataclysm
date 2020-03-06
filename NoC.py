@@ -21,6 +21,7 @@ import random
 import math
 import buildingsDB
 
+from cameraController import CameraController
 from planetInfoView import PlanetInfoView
 from planetBuildView import PlanetBuildView
 from star import Star
@@ -53,8 +54,17 @@ class World(DirectObject):
         self.orbitscale = 10
         self.sizescale = 0.6
         self.camSpeed = 10
-        self.zoomSpeed = 400
-        self.keyDict = {'left': False, 'right': False, 'up': False, 'down': False}
+        self.spin_speed = 20
+        self.zoomSpeed = 5
+        self.zoom_distance = 30
+        self.focus_point = [0,0]
+        self.keyDict = {
+            'left': False,
+            'right': False,
+            'up': False,
+            'down': False,
+            'spin_left': False,
+            'spin_right': False}
 
         # Global game balance variables
         self.population_time_delta = 3
@@ -80,6 +90,7 @@ class World(DirectObject):
         base.cTrav.addCollider(self.pickerNP, self.collQueue)
 
         # Set up the start screen
+        self.cam_ctrl = CameraController()
         self.create_gui()
         self.NewPlanetInfoView = PlanetInfoView(self)
         self.NewPlanetBuildView = PlanetBuildView(self)
@@ -90,7 +101,8 @@ class World(DirectObject):
         self.set_capital_planet()
 
         # Add all constantly running checks to the taskmanager
-        taskMgr.add(self.update_cam_task, "setcamTask")
+        #taskMgr.add(self.update_cam_task, "setcamTask")
+        #taskMgr.add(self.spin_cam_task, "spincamTask")
         taskMgr.add(self.redraw_head_gui, "redrawHeadGUITask")
         taskMgr.doMethodLater(
             self.population_time_delta, self.populate_planet_task, 'populatePlanetTask',
@@ -116,8 +128,10 @@ class World(DirectObject):
         self.accept("d", self.pressKey, ["right"])
         self.accept("d-up", self.releaseKey, ["right"])
         self.accept("mouse1", self.handle_mouse_click)
-        self.accept("wheel_up", self.handle_zoom, ['in'])
-        self.accept("wheel_down", self.handle_zoom, ['out'])
+        #self.accept("wheel_up", self.handle_zoom, ['in'])
+        #self.accept("wheel_down", self.handle_zoom, ['out'])
+        self.accept("mouse3", self.pressKey, ["spin_left"])
+        self.accept("mouse3-up", self.releaseKey, ["spin_left"])
 
     # ****************************************
     #         Main Gameplay Functions        *
@@ -132,42 +146,67 @@ class World(DirectObject):
             camera.setPos(camera.getPos()[0],
                           camera.getPos()[1] + self.camSpeed * dt,
                           camera.getPos()[2])
+            self.focus_point[1] += self.camSpeed * dt
         elif self.keyDict['down']:
             camera.setPos(camera.getPos()[0],
                           camera.getPos()[1] - self.camSpeed * dt,
                           camera.getPos()[2])
+            self.focus_point[1] -= self.camSpeed * dt
         if self.keyDict['left']:
             camera.setPos(camera.getPos()[0] - self.camSpeed * dt,
                           camera.getPos()[1],
                           camera.getPos()[2])
+            self.focus_point[0] -= self.camSpeed * dt
         elif self.keyDict['right']:
             camera.setPos(camera.getPos()[0] + self.camSpeed * dt,
                           camera.getPos()[1],
                           camera.getPos()[2])
+            self.focus_point[0] += self.camSpeed * dt
+        return task.cont
+
+    def spin_cam_task(self, task):
+
+        dt = globalClock.getDt()
+        camPos = camera.getPos()
+        angle = camera.getHpr()[0]
+        rads = angle * math.pi / 180
+
+        angle += dt * self.spin_speed
+
+        if self.keyDict['spin_left']:
+            camera.setPos(
+                self.focus_point[0] + (math.sin(rads) * self.zoom_distance),
+                self.focus_point[1] + (math.cos(rads) * -self.zoom_distance),
+                30)
+            camera.setHpr(angle, -45, 0)
         return task.cont
 
     def handle_zoom(self, direction):
         dt = globalClock.getDt()
         camPos = camera.getPos()
         if not self.PlanetInfoModeOn:
-            if direction == 'in' and camera.getPos()[2] > 8:
+            if direction == 'in':
+                self.zoom_distance -= self.zoomSpeed
+                self.zoom_distance = max(min(self.zoom_distance, 50), 5)
                 zoomInterval = camera.posInterval(
-                    0.1,
+                    0.05,
                     Point3(
                         camPos[0],
-                        camPos[1] + self.zoomSpeed * dt,
-                        camPos[2] - self.zoomSpeed * dt
+                        self.focus_point[0] - self.zoom_distance,
+                        self.zoom_distance
                     ),
                     camPos
                 )
                 zoomInterval.start()
-            elif direction == 'out' and camera.getPos()[2] < 50:
+            elif direction == 'out':
+                self.zoom_distance += self.zoomSpeed
+                self.zoom_distance = max(min(self.zoom_distance, 50), 5)
                 zoomInterval = camera.posInterval(
-                    0.1,
+                    0.05,
                     Point3(
                         camPos[0],
-                        camPos[1] - self.zoomSpeed * dt,
-                        camPos[2] + self.zoomSpeed * dt
+                        self.focus_point[0] - self.zoom_distance,
+                        self.zoom_distance
                     ),
                     camPos
                 )
@@ -341,12 +380,12 @@ class World(DirectObject):
 
         self.sky = loader.loadModel("models/sky_dome.blend")
 
-        self.sky_tex = loader.loadTexture("models/sky_tex_scaled.jpg")
+        self.sky_tex = loader.loadTexture("models/sky_tex2_cut.jpg")
         self.sky_tex.setWrapU(Texture.WM_clamp)
         self.sky.setTexture(self.sky_tex, 1)
         self.sky.reparentTo(render)
-        self.sky.setScale(100)
-        self.sky.setHpr(180, 0, 0)
+        self.sky.setScale(300)
+        self.sky.setHpr(270, 0, 0)
 
         self.Sun = Star(self, 'Sun', 'models/planet_sphere',
                         'models/sun_1k_tex.jpg', 2)
