@@ -339,12 +339,14 @@ class World(DirectObject):
         self.orbit_root_moon = (
             self.orbit_root_earth.attachNewNode('orbit_root_moon'))
 
-        self.sky = loader.loadModel("models/solar_sky_sphere")
+        self.sky = loader.loadModel("models/sky_dome.blend")
 
-        self.sky_tex = loader.loadTexture("models/stars_1k_tex.jpg")
+        self.sky_tex = loader.loadTexture("models/sky_tex_scaled.jpg")
+        self.sky_tex.setWrapU(Texture.WM_clamp)
         self.sky.setTexture(self.sky_tex, 1)
         self.sky.reparentTo(render)
         self.sky.setScale(100)
+        self.sky.setHpr(180, 0, 0)
 
         self.Sun = Star(self, 'Sun', 'models/planet_sphere',
                         'models/sun_1k_tex.jpg', 2)
