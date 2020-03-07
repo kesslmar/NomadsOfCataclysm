@@ -11,10 +11,10 @@ class CameraController(DirectObject):
         self.setupTasks()
 
     def setupVars(self):
-        self.initZoom = 5			#Camera's initial distance from anchor
-        self.zoomInLimit = 1		#Camera's minimum distance from anchor
-        self.zoomOutLimit = 1000	#Camera's maximum distance from anchor
-        self.moveSpeed = .5			#Rate of movement for the anchor
+        self.initZoom = 50			# Camera's initial distance from anchor
+        self.zoomInLimit = 1		# Camera's minimum distance from anchor
+        self.zoomOutLimit = 500     # Camera's maximum distance from anchor
+        self.moveSpeed = .2			# Rate of movement for the anchor
         self.zoom = None
         self.orbit = None
         self.move = None
@@ -46,19 +46,18 @@ class CameraController(DirectObject):
 
     def setupTasks(self):
         taskMgr.add(self.cameraOrbit, "Camera Orbit")
-        taskMgr.add(self.cameraZoom, "Camera Zoom")
-        taskMgr.add(self.cameraMove, "Camera Move")
+        taskMgr.add(self.camera_move_task, "Camera Move")
 
     def setOrbit(self, orbit):
-        if(orbit == True):
+        if orbit:
             props = base.win.getProperties()
             winX = props.getXSize()
             winY = props.getYSize()
             if base.mouseWatcherNode.hasMouse():
                 mX = base.mouseWatcherNode.getMouseX()
                 mY = base.mouseWatcherNode.getMouseY()
-                mPX = winX * ((mX+1)/2)
-                mPY = winY * ((-mY+1)/2)
+                mPX = winX * ((mX + 1) / 2)
+                mPY = winY * ((-mY + 1) / 2)
             self.orbit = [[mX, mY], [mPX, mPY]]
         else:
             self.orbit = None
@@ -82,7 +81,7 @@ class CameraController(DirectObject):
                     deltaH - limit
                 elif(deltaH < 0):
                     deltaH + limit
-                    
+
                 if(-limit < deltaP and deltaP < limit):
                     deltaP = 0
                 elif(deltaP > 0):
@@ -92,64 +91,35 @@ class CameraController(DirectObject):
 
                 newH = (self.camAnchor.getH() + -deltaH)
                 newP = (self.camAnchor.getP() + deltaP)
-                if(newP < -90): newP = -90
-                if(newP > 90): newP = 90
-            
+                if(newP < -90):
+                    newP = -90
+                if(newP > 90):
+                    newP = 90
+
                 self.camAnchor.setHpr(newH, newP, 0)				
-            
+
         return task.cont
-    
+
     def setZoom(self, zoom):
         if zoom == 'in':
             print('in')
-            '''
-            props = base.win.getProperties()
-            winX = props.getXSize()
-            winY = props.getYSize()
-            if base.mouseWatcherNode.hasMouse():
-                mX = base.mouseWatcherNode.getMouseX()
-                mY = base.mouseWatcherNode.getMouseY()
-                mPX = winX * ((mX+1)/2)
-                mPY = winY * ((-mY+1)/2)
-            self.zoom = [[mX, mY], [mPX, mPY]]
-            '''
-            self.zoom = -0.3
+            deltaY = -2
         elif zoom == 'out':
             print('out')
-            self.zoom = 0.3
-        
-    def cameraZoom(self, task):
-        if(self.zoom != None):
-            if base.mouseWatcherNode.hasMouse():
+            deltaY = 2
 
-                #mpos = base.mouseWatcherNode.getMouse()
-                
-                #base.win.movePointer(0, int(self.zoom[1][0]), int(self.zoom[1][1]))
-                
-                #deltaY = (mpos[1] - self.zoom[0][1]) * base.camera.getY()
-                deltaY = self.zoom
+        newY = (base.camera.getY() - deltaY)
+        if(newY > -self.zoomInLimit):
+            newY = -self.zoomInLimit
+        if(newY < -self.zoomOutLimit):
+            newY = -self.zoomOutLimit
 
-                limit = .5
-                
-                if(-limit < deltaY and deltaY < limit):
-                    deltaY = 0
-                elif(deltaY > 0):
-                    deltaY - limit
-                elif(deltaY < 0):
-                    deltaY + limit
-
-                newY = (base.camera.getY() - deltaY)
-                if(newY > -self.zoomInLimit): newY = -self.zoomInLimit
-                if(newY < -self.zoomOutLimit): newY = -self.zoomOutLimit
-
-                base.camera.setY(newY)				
-
-        return task.cont
+        base.camera.setY(newY)
 
     def setMove(self, value, direction):
         self.move_dict.update({direction: value})
 
-    def cameraMove(self, task):
+    def camera_move_task(self, task):
         if self.move_dict['foreward']:
             self.camAnchor.setY(self.camAnchor, self.moveSpeed)
             self.camAnchor.setZ(0)
@@ -161,3 +131,14 @@ class CameraController(DirectObject):
         if self.move_dict['right']:
             self.camAnchor.setX(self.camAnchor, self.moveSpeed)
         return task.cont
+
+    def reset(self):
+        self.camAnchor.setPos(0, 0, 0)
+        self.camAnchor.setHpr(0, -45, 0)
+        base.camera.setPos(0, -50, 0)
+
+    def info_view_to(self, obj):
+        self.camAnchor.posInterval(
+            0.2, obj.getPos(), self.camAnchor.getPos())
+        base.camera.posInterval(
+            0.2, Vec3(-5 * obj.scale, -15 * obj.scale, 0), base.camera.getPos())

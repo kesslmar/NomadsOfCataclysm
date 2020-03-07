@@ -41,8 +41,8 @@ class World(DirectObject):
         # The standard camera position and background initialization
         base.setBackgroundColor(0, 0, 0)
         base.disableMouse()
-        camera.setPos(0, -30, 30)
-        camera.setHpr(0, -45, 0)
+        self.cam_ctrl = CameraController()
+        self.cam_ctrl.reset()
 
         # The global variables we use to control the speed and size of objects
         self.yearscale = 900
@@ -53,18 +53,6 @@ class World(DirectObject):
         self.system_population = 0
         self.orbitscale = 10
         self.sizescale = 0.6
-        self.camSpeed = 10
-        self.spin_speed = 20
-        self.zoomSpeed = 5
-        self.zoom_distance = 30
-        self.focus_point = [0,0]
-        self.keyDict = {
-            'left': False,
-            'right': False,
-            'up': False,
-            'down': False,
-            'spin_left': False,
-            'spin_right': False}
 
         # Global game balance variables
         self.population_time_delta = 3
@@ -90,7 +78,6 @@ class World(DirectObject):
         base.cTrav.addCollider(self.pickerNP, self.collQueue)
 
         # Set up the start screen
-        self.cam_ctrl = CameraController()
         self.create_gui()
         self.NewPlanetInfoView = PlanetInfoView(self)
         self.NewPlanetBuildView = PlanetBuildView(self)
@@ -101,8 +88,6 @@ class World(DirectObject):
         self.set_capital_planet()
 
         # Add all constantly running checks to the taskmanager
-        #taskMgr.add(self.update_cam_task, "setcamTask")
-        #taskMgr.add(self.spin_cam_task, "spincamTask")
         taskMgr.add(self.redraw_head_gui, "redrawHeadGUITask")
         taskMgr.doMethodLater(
             self.population_time_delta, self.populate_planet_task, 'populatePlanetTask',
@@ -111,27 +96,7 @@ class World(DirectObject):
 
         # Open up all listeners for varous mouse and keyboard inputs
         self.accept("escape", sys.exit)
-        self.accept("arrow_up", self.pressKey, ["up"])
-        self.accept("arrow_up-up", self.releaseKey, ["up"])
-        self.accept("w", self.pressKey, ["up"])
-        self.accept("w-up", self.releaseKey, ["up"])
-        self.accept("arrow_down", self.pressKey, ["down"])
-        self.accept("arrow_down-up", self.releaseKey, ["down"])
-        self.accept("s", self.pressKey, ["down"])
-        self.accept("s-up", self.releaseKey, ["down"])
-        self.accept("arrow_left", self.pressKey, ["left"])
-        self.accept("arrow_left-up", self.releaseKey, ["left"])
-        self.accept("a", self.pressKey, ["left"])
-        self.accept("a-up", self.releaseKey, ["left"])
-        self.accept("arrow_right", self.pressKey, ["right"])
-        self.accept("arrow_right-up", self.releaseKey, ["right"])
-        self.accept("d", self.pressKey, ["right"])
-        self.accept("d-up", self.releaseKey, ["right"])
-        self.accept("mouse1", self.handle_mouse_click)
-        #self.accept("wheel_up", self.handle_zoom, ['in'])
-        #self.accept("wheel_down", self.handle_zoom, ['out'])
-        self.accept("mouse3", self.pressKey, ["spin_left"])
-        self.accept("mouse3-up", self.releaseKey, ["spin_left"])
+        self.accept('mouse1', self.handle_mouse_click)
 
     # ****************************************
     #         Main Gameplay Functions        *
@@ -140,98 +105,29 @@ class World(DirectObject):
     # Camera, controle and main GUI functions
     # ----------------------------------------
 
-    def update_cam_task(self, task):
-        dt = globalClock.getDt()
-        if self.keyDict['up']:
-            camera.setPos(camera.getPos()[0],
-                          camera.getPos()[1] + self.camSpeed * dt,
-                          camera.getPos()[2])
-            self.focus_point[1] += self.camSpeed * dt
-        elif self.keyDict['down']:
-            camera.setPos(camera.getPos()[0],
-                          camera.getPos()[1] - self.camSpeed * dt,
-                          camera.getPos()[2])
-            self.focus_point[1] -= self.camSpeed * dt
-        if self.keyDict['left']:
-            camera.setPos(camera.getPos()[0] - self.camSpeed * dt,
-                          camera.getPos()[1],
-                          camera.getPos()[2])
-            self.focus_point[0] -= self.camSpeed * dt
-        elif self.keyDict['right']:
-            camera.setPos(camera.getPos()[0] + self.camSpeed * dt,
-                          camera.getPos()[1],
-                          camera.getPos()[2])
-            self.focus_point[0] += self.camSpeed * dt
-        return task.cont
-
-    def spin_cam_task(self, task):
-
-        dt = globalClock.getDt()
-        camPos = camera.getPos()
-        angle = camera.getHpr()[0]
-        rads = angle * math.pi / 180
-
-        angle += dt * self.spin_speed
-
-        if self.keyDict['spin_left']:
-            camera.setPos(
-                self.focus_point[0] + (math.sin(rads) * self.zoom_distance),
-                self.focus_point[1] + (math.cos(rads) * -self.zoom_distance),
-                30)
-            camera.setHpr(angle, -45, 0)
-        return task.cont
-
-    def handle_zoom(self, direction):
-        dt = globalClock.getDt()
-        camPos = camera.getPos()
-        if not self.PlanetInfoModeOn:
-            if direction == 'in':
-                self.zoom_distance -= self.zoomSpeed
-                self.zoom_distance = max(min(self.zoom_distance, 50), 5)
-                zoomInterval = camera.posInterval(
-                    0.05,
-                    Point3(
-                        camPos[0],
-                        self.focus_point[0] - self.zoom_distance,
-                        self.zoom_distance
-                    ),
-                    camPos
-                )
-                zoomInterval.start()
-            elif direction == 'out':
-                self.zoom_distance += self.zoomSpeed
-                self.zoom_distance = max(min(self.zoom_distance, 50), 5)
-                zoomInterval = camera.posInterval(
-                    0.05,
-                    Point3(
-                        camPos[0],
-                        self.focus_point[0] - self.zoom_distance,
-                        self.zoom_distance
-                    ),
-                    camPos
-                )
-                zoomInterval.start()
-
     def set_follow_cam_task(self, obj, scale, mode, task):
         pos = obj.getPos()
 
         if mode == 'info':
-            camera.setPos(pos[0] - scale * 1.25, pos[1] - scale * 4, scale * 4)
+            self.cam_ctrl.camAnchor.setPos(pos)
+            self.cam_ctrl.camAnchor.setHpr(0, -45, 0)
+            base.camera.setPos(-5 * scale, -15 * scale, 0)
         if mode == 'build':
-            camera.setPos(pos[0] - scale * 0.9, pos[1] - scale * 3.4, 0)
+            self.cam_ctrl.reset()
         return task.cont
 
     def handle_mouse_click(self):
-        mpos = base.mouseWatcherNode.getMouse()
-        self.pickerRay.setFromLens(base.camNode, mpos.getX(), mpos.getY())
-        base.cTrav.traverse(render)
-        if self.collQueue.getNumEntries() > 0:
-            self.collQueue.sortEntries()
-            pickedObj = self.collQueue.getEntry(0).getIntoNodePath()
-            pickedObj = pickedObj.findNetTag('clickable')
-            if not pickedObj.isEmpty() and not self.PlanetInfoModeOn:
-                instance = pickedObj.getPythonTag('instance')
-                self.toggle_planet_info_mode(True, instance)
+        if base.mouseWatcherNode.hasMouse():
+            mpos = base.mouseWatcherNode.getMouse()
+            self.pickerRay.setFromLens(base.camNode, mpos.getX(), mpos.getY())
+            base.cTrav.traverse(render)
+            if self.collQueue.getNumEntries() > 0:
+                self.collQueue.sortEntries()
+                pickedObj = self.collQueue.getEntry(0).getIntoNodePath()
+                pickedObj = pickedObj.findNetTag('clickable')
+                if not pickedObj.isEmpty() and not self.PlanetInfoModeOn:
+                    instance = pickedObj.getPythonTag('instance')
+                    self.toggle_planet_info_mode(True, instance)
 
     def redraw_head_gui(self, task):
         self.HeadGUIText['text'] = ('Year ' + str(self.yearCounter) + ', '
@@ -243,12 +139,6 @@ class World(DirectObject):
     # Smaller single line functions
     # -----------------------------
 
-    def pressKey(self, key):
-        self.keyDict[key] = True
-
-    def releaseKey(self, key):
-        self.keyDict[key] = False
-
     def incYear(self):
         self.yearCounter += 1
 
@@ -259,22 +149,15 @@ class World(DirectObject):
     # ------------------------------------------------
 
     def toggle_planet_info_mode(self, mode=False, obj=None):
+        anchorPos = self.cam_ctrl.camAnchor.getPos()
 
         if mode:
             self.MapViewPanel.hide()
             self.PlanetInfoModeOn = True
 
-            pos = obj.getPos()
-            camPos = camera.getPos()
             self.NewPlanetInfoView.reset(obj)
             zoomInterval = Sequence(
-                camera.posInterval(
-                    0.3,
-                    Point3(
-                        pos[0] - obj.scale * 1.25,
-                        pos[1] - obj.scale * 4,
-                        obj.scale * 4),
-                    camPos),
+                Func(self.cam_ctrl.info_view_to, obj),
                 Func(self.NewPlanetInfoView.show)
             )
             zoomInterval.start()
@@ -284,15 +167,14 @@ class World(DirectObject):
                 extraArgs=[obj, obj.scale, 'info'],
                 appendTask=True
             )
-
         else:
             self.PlanetInfoModeOn = False
             taskMgr.remove('infocamTask')
-            camPos = camera.getPos()
             zoomInterval = Sequence(
-                camera.posInterval(0.3, Point3(0, -30, 30), camPos),
+                self.cam_ctrl.camAnchor.posInterval(0.2, Point3(0, 0, 0), anchorPos),
                 Func(self.MapViewPanel.show))
             zoomInterval.start()
+            self.cam_ctrl.reset()
             taskMgr.remove('updatePlanetInfoTask')
             self.NewPlanetInfoView.hide()
 
