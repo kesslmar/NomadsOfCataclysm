@@ -107,10 +107,8 @@ class CameraController(DirectObject):
 
     def setZoom(self, zoom):
         if zoom == 'in':
-            print('in')
             deltaY = -2
         elif zoom == 'out':
-            print('out')
             deltaY = 2
 
         newY = (base.camera.getY() - deltaY)

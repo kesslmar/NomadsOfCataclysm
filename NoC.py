@@ -38,11 +38,15 @@ class World(DirectObject):
 
     def __init__(self):
 
-        # The standard camera position and background initialization
+        # The standard camera, light and background initialization
         base.setBackgroundColor(0, 0, 0)
         base.disableMouse()
         self.cam_ctrl = CameraController()
         self.cam_ctrl.reset()
+        alight = AmbientLight('alight')
+        alight.setColor((0.2, 0.2, 0.2, 1))
+        alnp = render.attachNewNode(alight)
+        render.setLight(alnp)
 
         # The global variables we use to control the speed and size of objects
         self.yearscale = 900

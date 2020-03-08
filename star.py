@@ -16,6 +16,13 @@ class Star():
         self.model.setTag('clickable', 'yes')
         self.model.setPythonTag('instance', self)
 
+        self.light = PointLight('starlight')
+        self.lightpath = self.model.attachNewNode(self.light)
+        self.lightpath.setPos(0, 0, 0)
+        self.light.setColorTemperature(5000)
+        render.setLight(self.lightpath)
+        self.model.clearLight(self.lightpath)
+
         world.galaxy_objects.append(self)
 
     def getPos(self):
