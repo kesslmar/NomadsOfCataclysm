@@ -121,7 +121,7 @@ class ScrolledItemSelector(DirectObject):
         hits_not_upper_bound = self.c_new_pos >= self.c_scroll_start
         hits_not_lower_bound = self.c_new_pos <= self.c_scroll_stop
 
-        print('canvas : ' + str(self.canvas.getZ()))
+        # print('canvas : ' + str(self.canvas.getZ()))
 
         if hits_not_upper_bound and hits_not_lower_bound:
             self.canvas.setZ(self.c_new_pos)

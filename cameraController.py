@@ -97,7 +97,11 @@ class CameraController(DirectObject):
                 if(newP > 90):
                     newP = 90
 
-                self.camAnchor.setHpr(newH, newP, 0)				
+                if(newH < -180):
+                    newH += 360
+                if(newH > 180):
+                    newH -= 360
+                self.camAnchor.setHpr(newH, newP, 0)
 
         return task.cont
 
