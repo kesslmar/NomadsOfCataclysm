@@ -1,5 +1,6 @@
 from direct.showbase.DirectObject import DirectObject
-from pandac.PandaModules import *
+from panda3d.core import *
+from direct.interval.IntervalGlobal import *
 
 class CameraController(DirectObject):
     def	__init__(self):
@@ -133,12 +134,66 @@ class CameraController(DirectObject):
         return task.cont
 
     def reset(self):
-        self.camAnchor.setPos(0, 0, 0)
-        self.camAnchor.setHpr(0, -45, 0)
-        base.camera.setPos(0, -50, 0)
+        anchorPos = self.camAnchor.getPos()
+        anchorHpr = self.camAnchor.getHpr()
+
+        taskMgr.remove('infocamTask')
+        taskMgr.remove('buildcamTask')
+        transition = Parallel(
+            self.camAnchor.posInterval(0.2, Vec3(0, 0, 0), anchorPos),
+            self.camAnchor.hprInterval(0.2, Vec3(0, -45, 0), anchorHpr),
+            base.camera.posInterval(0.2, Vec3(0, -50, 0), base.camera.getPos())
+        )
+        transition.start()
+
 
     def info_view_to(self, obj):
-        self.camAnchor.posInterval(
-            0.2, obj.getPos(), self.camAnchor.getPos())
-        base.camera.posInterval(
-            0.2, Vec3(-5 * obj.scale, -15 * obj.scale, 0), base.camera.getPos())
+        taskMgr.remove('buildcamTask')  # in case of coming from Build view
+        transition = Sequence(
+            Parallel(
+                self.camAnchor.posInterval(
+                    0.2, obj.getPos(), self.camAnchor.getPos()),
+                self.camAnchor.hprInterval(
+                    0.2, Vec3(0, -45, 0), self.camAnchor.getHpr()),
+                base.camera.posInterval(
+                    0.2, Vec3(-1.22 * obj.scale, -5.5 * obj.scale, 0), base.camera.getPos())
+            ),
+            Func(self._add_follow_cam, 'info', obj)
+        )
+        transition.start()
+
+    def build_view_to(self, obj):
+        taskMgr.remove('infocamTask')
+        transition = Sequence(
+            Parallel(
+                self.camAnchor.posInterval(
+                    0.2, obj.getPos(), self.camAnchor.getPos()),
+                self.camAnchor.hprInterval(
+                    0.2, Vec3(0, 0, 0), self.camAnchor.getHpr()),
+                base.camera.posInterval(
+                    0.2, Vec3(-0.9 * obj.scale, -3.4 * obj.scale, 0), base.camera.getPos())
+            ),
+            Func(self._add_follow_cam, 'build', obj)
+        )
+        transition.start()
+
+    def _add_follow_cam(self, mode, obj):
+        taskMgr.add(
+                self._follow_cam_task,
+                'infocamTask',
+                extraArgs=[obj, obj.scale, mode],
+                appendTask=True
+        )
+
+    def _follow_cam_task(self, obj, scale, mode, task):
+        pos = obj.getPos()
+
+        if mode == 'info':
+            self.camAnchor.setPos(pos)
+            self.camAnchor.setHpr(0, -45, 0)
+            base.camera.setPos(-1.22 * scale, -5.5 * scale, 0)
+        if mode == 'build':
+            self.camAnchor.setPos(pos)
+            self.camAnchor.setHpr(0, 0, 0)
+            base.camera.setPos(-.9 * scale, -3.4 * scale, 0)
+        return task.cont

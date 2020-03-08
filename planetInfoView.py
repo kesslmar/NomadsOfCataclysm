@@ -206,38 +206,34 @@ class PlanetInfoView():
         return task.again
 
     def toggle_planet_build_mode(self, mode=False):
-        pos = self.obj.getPos()
-        camPos = camera.getPos()
         obj = self.obj
-        scale = self.followObjectScale
+        scale = obj.scale
 
         if mode:
             self.hide()
             self.clear()
-            taskMgr.remove('infocamTask')
             self.NewPlanetBuildView.reset(obj)
 
             zoomInterval = Sequence(
-                camera.posHprInterval(0.3, Point3(pos[0] - scale * 0.9, pos[1] - scale * 3.4, 0), Vec3(0, 0, 0), camPos),
-                Func(self.NewPlanetBuildView.show))
+                Func(self.world.cam_ctrl.build_view_to, obj),
+                Wait(0.2),
+                Func(self.NewPlanetBuildView.show)
+            )
             zoomInterval.start()
-
-            taskMgr.add(self.world.set_follow_cam_task, 'buildcamTask', extraArgs=[obj, scale, 'build'], appendTask=True)
+            taskMgr.remove('updatePlanetInfoTask')
             taskMgr.add(self.NewPlanetBuildView.refresh_quickinfo_task, 'quickinfoTask', extraArgs=[obj], appendTask=True)
 
         else:
             self.NewPlanetBuildView.hide()
             self.NewPlanetBuildView.clear()
             taskMgr.remove('quickinfoTask')
-            taskMgr.remove('buildcamTask')
             self.reset(obj)
-
             zoomInterval = Sequence(
-                camera.posHprInterval(0.3, Point3(pos[0] - scale * 1.25, pos[1] - scale * 4, scale * 4), Vec3(0, -45, 0), camPos),
-                Func(self.show))
+                Func(self.world.cam_ctrl.info_view_to, obj),
+                Wait(0.2),
+                Func(self.show)
+            )
             zoomInterval.start()
-
-            taskMgr.add(self.world.set_follow_cam_task, 'infocamTask', extraArgs=[obj, scale, 'info'], appendTask=True)
 
         return None
 

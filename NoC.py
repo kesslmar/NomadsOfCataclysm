@@ -105,17 +105,6 @@ class World(DirectObject):
     # Camera, controle and main GUI functions
     # ----------------------------------------
 
-    def set_follow_cam_task(self, obj, scale, mode, task):
-        pos = obj.getPos()
-
-        if mode == 'info':
-            self.cam_ctrl.camAnchor.setPos(pos)
-            self.cam_ctrl.camAnchor.setHpr(0, -45, 0)
-            base.camera.setPos(-5 * scale, -15 * scale, 0)
-        if mode == 'build':
-            self.cam_ctrl.reset()
-        return task.cont
-
     def handle_mouse_click(self):
         if base.mouseWatcherNode.hasMouse():
             mpos = base.mouseWatcherNode.getMouse()
@@ -149,7 +138,6 @@ class World(DirectObject):
     # ------------------------------------------------
 
     def toggle_planet_info_mode(self, mode=False, obj=None):
-        anchorPos = self.cam_ctrl.camAnchor.getPos()
 
         if mode:
             self.MapViewPanel.hide()
@@ -158,22 +146,12 @@ class World(DirectObject):
             self.NewPlanetInfoView.reset(obj)
             zoomInterval = Sequence(
                 Func(self.cam_ctrl.info_view_to, obj),
+                Wait(0.2),
                 Func(self.NewPlanetInfoView.show)
             )
             zoomInterval.start()
-            taskMgr.add(
-                self.set_follow_cam_task,
-                'infocamTask',
-                extraArgs=[obj, obj.scale, 'info'],
-                appendTask=True
-            )
         else:
             self.PlanetInfoModeOn = False
-            taskMgr.remove('infocamTask')
-            zoomInterval = Sequence(
-                self.cam_ctrl.camAnchor.posInterval(0.2, Point3(0, 0, 0), anchorPos),
-                Func(self.MapViewPanel.show))
-            zoomInterval.start()
             self.cam_ctrl.reset()
             taskMgr.remove('updatePlanetInfoTask')
             self.NewPlanetInfoView.hide()
